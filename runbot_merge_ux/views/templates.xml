@@ -1,0 +1,27 @@
+<odoo>
+
+    <template id="dashboard" name="mergebot dashboard" inherit_id="runbot_merge.dashboard">
+        <section t-as="project" position="attributes">
+            <!-- use the new name given by the controller -->
+            <attribute name="t-foreach">runbot_merge_projects.with_context(active_test=False)</attribute>
+        </section>
+    </template>
+
+    <!-- add menu to runbot merge -->
+    <template id="layout" inherit_id="runbot.layout">
+        <t t-if="projects" position="after">
+            <t t-if="runbot_merge_projects">
+                <li class="nav-item">
+                    <a class="nav-link" href="/runbot">Runbot</a>
+                </li>
+            </t>
+            <t t-if="not runbot_merge_projects">
+                <li class="nav-item">
+                    <a class="nav-link" href="/runbot_merge">Runbot Merge</a>
+                </li>
+            </t>
+        </t>
+    </template>
+
+</odoo>
+

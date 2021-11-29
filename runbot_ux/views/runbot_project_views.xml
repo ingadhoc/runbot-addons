@@ -1,0 +1,11 @@
+<odoo>
+   <record id="view_runbot_project" model="ir.ui.view">
+        <field name="model">runbot.project</field>
+        <field name="inherit_id" ref="runbot.view_runbot_project"/>
+        <field name="arch" type="xml">
+            <group>
+                <field name="sequence"/>
+            </group>
+        </field>
+    </record>
+</odoo>
