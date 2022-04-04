@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data>
+    <record id="repo_adhoc_dev_misc" model="runbot.repo">
+        <field name="name">adhoc-dev/miscellaneous</field>
+        <field name="project_id" ref="runbot.main_project"/>
+        <field name="mode">disabled</field>
+    </record>
+    <record id="remote_adhoc_dev_misc" model="runbot.remote">
+        <field name="name">git@github.com:adhoc-dev/miscellaneous</field>
+        <field name="repo_id" ref="repo_adhoc_dev_misc"/>
+    </record>
+    <record id="transifex_project_dev_misc" model="transifex.project">
+        <field name="slug">odoo-transifex-test-15-0</field>
+        <field name="organization_slug">adhoc</field>
+        <field name="api_token">COMPLETAR</field>
+        <!-- <field name="github_token"></field> -->
+        <field name="periodicity" eval="1"/>
+    </record>
+    <record id="branch_dev_misc_15" model="runbot.branch">
+        <field name="is_pr" eval="0"/>
+        <!-- <field name="bundle_id" ref="bundle_15"/> -->
+        <field name="remote_id" ref="remote_adhoc_dev_misc"/>
+        <field name="name">15.0</field>
+        <field name="transifex_project_id" ref="transifex_project_dev_misc"/>
+    </record>
+    <record id="branch_dev_misc_15" model="runbot.branch">
+        <field name="bundle_id" ref="bundle_15"/>
+    </record>
+    <!-- No lo estamos usando por ahora -->
+    <!-- commit inicial de v15 donde muchos modulos se modificaron -->
+    <!-- <record id="commit_dev_misc_15" model="runbot.commit">
+        <field name="repo_id" ref="repo_adhoc_dev_misc"/>
+        <field name="name">65d9c4715be4cc65a62d96a0823995ad09c9b9fd</field>
+    </record> -->
+</data>

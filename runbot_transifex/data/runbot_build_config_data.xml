@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <data noupdate="1">
+    <record id="runbot_build_config_step_transifex_push" model="runbot.build.config.step">
+        <field name="name">transifex_push</field>
+        <field name="job_type">python</field>
+        <field name="cpu_limit">3600</field>
+        <field name="test_enable" eval="False"/>
+        <field name="protected" eval="True"/>
+        <field name="install_modules">transifex</field>
+        <field name="db_name">transifex</field>
+        <field name="default_sequence">90</field>
+        <field name="domain_filter">[('params_id.create_batch_id.bundle_id.is_base', '=', True)]</field>
+        <field name="python_code">
+commit_links = build.params_id.commit_link_ids.filtered(lambda x: x.match_type in ('new', 'head') and x.branch_id.transifex_project_id)
+transifex_projects = commit_links.mapped('branch_id.transifex_project_id')
+
+tx_data = []
+# list of tuples with [(token, organization_slug, project_slug, modules)]
+for transifex_project in commit_links.mapped('branch_id.transifex_project_id'):
+  modules = []
+  commits = commit_links.filtered(lambda x: x.branch_id.transifex_project_id == transifex_project).mapped('commit_id')
+  tx_data.append((
+    transifex_project.api_token,
+    transifex_project.organization_slug,
+    transifex_project.slug,
+    [x[1] for x in commits._get_available_modules()]))
+
+icp = self.env['ir.config_parameter'].sudo()
+env_variables = [
+    'tx_data=%s' % tx_data,
+]
+cmd = build._cmd()
+db_name = build.parent_id.database_ids.filtered(lambda x: x.db_suffix == self.db_name).name
+cmd += ['-d', db_name]
+cmd.append('--stop-after-init')
+cmd.append('--max-cron-threads=0')
+docker_params = {
+  'cmd': cmd,
+  'env_variables': env_variables,
+  'log_path': log_path, 'build_dir': build._path(), 'container_name': build._get_docker_name(),
+  'ro_volumes': build._checkout(),
+}
+
+</field>
+    </record>
+  </data>
+</odoo>
