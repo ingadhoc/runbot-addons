@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+        <!-- transifex.project -->
+        <record id="transifex_project_view_form" model="ir.ui.view">
+            <field name="name">transifex.project.view.form</field>
+            <field name="model">transifex.project</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="slug"/>
+                            <field name="organization_slug"/>
+                            <field name="api_token" widget="password"/>
+                            <field name="branch_ids" widget="many2many" options="{'no_create': True}">
+                                <tree>
+                                    <field name="remote_id"/>
+                                    <field name="name"/>
+                                    <field name="next_sync_date"/>
+                                    <button name="sync_translations_to_github" type="object" help="Sync translations from transifex to github" icon="fa-refresh"/>
+                                    <button name="get_push_data" type="object" help="Get push data" icon="fa-arrow-up" groups="base.group_no_one"/>
+                                </tree>
+                            </field>
+                        </group>
+                        <group string="Sync to Transifex">
+                            <field name="periodicity"/>
+                            <field name="github_token"/>
+                        </group>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" widget="mail_followers"/>
+                        <field name="message_ids" widget="mail_thread"/>
+                        <field name="activity_ids" widget="mail_activity"/>
+                    </div>
+                </form>
+            </field>
+        </record>
+
+        <record id="transifex_project_view_tree" model="ir.ui.view">
+            <field name="model">transifex.project</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="slug"/>
+                    <field name="organization_slug"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="transifex_project_view_search" model="ir.ui.view">
+            <field name="model">transifex.project</field>
+            <field name="arch" type="xml">
+                <search>
+                    <field name="slug"/>
+                    <field name="organization_slug"/>
+                </search>
+            </field>
+        </record>
+
+        <record id="transifex_project_act" model="ir.actions.act_window">
+            <field name="name">Scheduled Actions</field>
+            <field name="res_model">transifex.project</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+
+        <menuitem id="menu_transifex" name="Transifex"/>
+        <menuitem id="menu_transifex_project_act" action="transifex_project_act" parent="menu_transifex"/>
+
+</odoo>
