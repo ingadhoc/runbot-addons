@@ -13,6 +13,7 @@
                             <field name="api_token" widget="password"/>
                             <field name="branch_ids" widget="many2many" options="{'no_create': True}">
                                 <tree>
+                                    <field name="repo_id"/>
                                     <field name="remote_id"/>
                                     <field name="name"/>
                                     <field name="next_sync_date"/>
@@ -56,7 +57,7 @@
         </record>
 
         <record id="transifex_project_act" model="ir.actions.act_window">
-            <field name="name">Scheduled Actions</field>
+            <field name="name">Transifex</field>
             <field name="res_model">transifex.project</field>
             <field name="view_mode">tree,form</field>
         </record>

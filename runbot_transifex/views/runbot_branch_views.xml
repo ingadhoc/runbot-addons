@@ -8,4 +8,15 @@
             </field>
         </field>
     </record>
+
+    <record id="branch_search" model="ir.ui.view">
+        <field name="model">runbot.branch</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="repo_id"/>
+                <field name="remote_id"/>
+                <field name="name"/>
+            </search>
+        </field>
+    </record>
 </odoo>

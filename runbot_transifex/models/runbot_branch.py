@@ -16,6 +16,7 @@ class RunbotBranch(models.Model):
 
     transifex_project_id = fields.Many2one('transifex.project')
     next_sync_date = fields.Datetime()
+    repo_id = fields.Many2one(related='remote_id.repo_id')
 
     @api.model
     def _cron_sync_translations_to_github(self):

@@ -3,6 +3,7 @@ from odoo import models, fields
 
 class TransifexProject(models.Model):
     _name = "transifex.project"
+    _description = "transifex.project"
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _rec_name = 'slug'
 
