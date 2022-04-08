@@ -16,5 +16,4 @@ def post_init(cr, registry):
     for api_key, organization_slug, project_slug, modules_names in tx_data:
         _logger.info('Pushing transifex translations for project %s-%s', organization_slug, project_slug)
         modules = env['ir.module.module'].search([('name', 'in', modules_names)])
-        import pdb; pdb.set_trace()
         env['base.language.export']._transifex_push(modules, api_key, organization_slug, project_slug)

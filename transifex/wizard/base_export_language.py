@@ -32,7 +32,6 @@ class BaseLanguageExport(models.TransientModel):
         def _get_language_content(lang_code, module):
             with contextlib.closing(io.BytesIO()) as buf:
                 tools.trans_export(lang_code, [module.name], buf, 'po', self._cr)
-                # import pdb; pdb.set_trace()
                 content = buf.getvalue().decode("utf-8")
                 #  y luego pasando "content_encoding": "text",
 
