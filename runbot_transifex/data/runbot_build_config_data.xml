@@ -7,8 +7,7 @@
         <field name="cpu_limit">3600</field>
         <field name="test_enable" eval="False"/>
         <field name="protected" eval="True"/>
-        <field name="install_modules">transifex</field>
-        <field name="db_name">transifex</field>
+        <field name="db_name">all</field>
         <field name="default_sequence">90</field>
         <field name="domain_filter">[('params_id.create_batch_id.bundle_id.is_base', '=', True)]</field>
         <field name="python_code">
@@ -33,6 +32,7 @@ env_variables = [
 cmd = build._cmd()
 db_name = build.parent_id.database_ids.filtered(lambda x: x.db_suffix == self.db_name).name
 cmd += ['-d', db_name]
+cmd.append('-i transifex_push')
 cmd.append('--stop-after-init')
 cmd.append('--max-cron-threads=0')
 docker_params = {
