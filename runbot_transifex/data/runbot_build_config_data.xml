@@ -19,11 +19,14 @@ tx_data = []
 for transifex_project in commit_links.mapped('branch_id.transifex_project_id'):
   modules = []
   commits = commit_links.filtered(lambda x: x.branch_id.transifex_project_id == transifex_project).mapped('commit_id')
+  for commit in commits:
+    modules += [x[1] for x in commit._get_available_modules()]
   tx_data.append((
     transifex_project.api_token,
     transifex_project.organization_slug,
     transifex_project.slug,
-    [x[1] for x in commits._get_available_modules()]))
+    # [x._get_available_modules()[1] for x in commits]))
+    modules))
 
 icp = self.env['ir.config_parameter'].sudo()
 env_variables = [
