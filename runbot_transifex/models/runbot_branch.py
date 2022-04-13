@@ -60,9 +60,9 @@ class RunbotBranch(models.Model):
             '* export tx_data="%s"\n'
             '* crear una base de odoo con esos modulos instalados con: odoo -i %s -d transifex --stop-after-init\n'
             '* si la base es nueva ahora podemos mandar a instalar transifex y el post load va a intentar pushear '
-            'traducciones, lo hacemos con: odoo -i transifex -d transifex --stop-after-init\n'
+            'traducciones, lo hacemos con: odoo -i transifex_push -d transifex --stop-after-init\n'
             '* si la base ya tiene instalado transifex podemos entrar por shell (odoo-shell -d transifex) y correr:\n'
-            '    from odoo.addons.transifex import post_init\n'
+            '    from odoo.addons.transifex_push import post_init\n'
             '    post_init(env.cr, False)\n'
             '* tener en cuenta que si se quieren exportar idiomas (además de traducción base en inglés) se deben '
             'instalar esos idiomas en la base "transifex"' % (tx_data, ','.join(modules_names)))
@@ -88,7 +88,7 @@ class RunbotBranch(models.Model):
             tx_project = transifex_api.Project.get(
                 slug=rec.transifex_project_id.slug, organization=tx_organization)
             tx_resources = tx_project.fetch('resources')
-            for tx_resource in tx_resources[0:2]:
+            for tx_resource in tx_resources:
                 if tx_resource.slug not in modules_names:
                     _logger.debug('Skiping %s as not found on transifex project', tx_resource.slug)
                     continue
