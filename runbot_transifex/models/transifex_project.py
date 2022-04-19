@@ -12,5 +12,5 @@ class TransifexProject(models.Model):
     branch_ids = fields.One2many('runbot.branch', 'transifex_project_id', domain=[('bundle_id.is_base', '=', True)])
     # mostrar en la tree: remote y name (o bundle)
     api_token = fields.Char(required=True)
-    periodicity = fields.Char('Periodicity (days)')
+    periodicity = fields.Integer('Periodicity (days)')
     github_token = fields.Char()

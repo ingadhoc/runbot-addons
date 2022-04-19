@@ -21,7 +21,7 @@ class RunbotBranch(models.Model):
     @api.model
     def _cron_sync_translations_to_github(self):
         now = fields.Datetime.now()
-        branch = self.search([('transifex_project_id', '!=', False), ('next_sync_date', '<', now)], limit=1)
+        branch = self.search([('transifex_project_id', '!=', False),'|', ('next_sync_date', '<', now), ('next_sync_date', '=', False)], limit=1)
         if branch:
             try:
                 # we first change date so that in case we have an error with some branch we continue with next one on
@@ -30,7 +30,7 @@ class RunbotBranch(models.Model):
             except Exception as e:
                 _logger.warning('Error al sincronizar transifex a github: %s', e)
                 branch.transifex_project_id.message_post(
-                    'Error al sincronizar transifex a github. Esto es lo que obtuvimos: %s' % e)
+                    body='Error al sincronizar transifex a github. Esto es lo que obtuvimos: %s' % e)
 
     def get_push_data(self):
         self.ensure_one()
