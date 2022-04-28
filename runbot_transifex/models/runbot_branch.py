@@ -25,14 +25,17 @@ class RunbotBranch(models.Model):
         branch = self.search([('transifex_project_id', '!=', False),'|', ('next_sync_date', '<', now), ('next_sync_date', '=', False)], limit=1)
         if branch:
             try:
-                old_next_sync_date = branch.next_sync_date
-                # we first change date so that in case we have an error with some branch we continue with next one on
+                last_sync_date = branch.next_sync_date
+                # we first change date so that in case theres is a new translantion between we're syncking,
+                # that change syncked on next run
                 branch.next_sync_date = fields.Datetime.add(now, days=branch.transifex_project_id.periodicity)
-                branch.sync_translations_to_github(next_date=old_next_date)
+                branch.sync_translations_to_github(last_sync_date=last_sync_date)
             except Exception as e:
                 _logger.warning('Error al sincronizar transifex a github: %s', e)
                 branch.transifex_project_id.message_post(
                     body='Error al sincronizar transifex a github. Esto es lo que obtuvimos: %s' % e)
+                # restore sync date if we've a failure
+                branch.next_sync_date = last_sync_date
 
     def get_push_data(self):
         self.ensure_one()
@@ -69,7 +72,7 @@ class RunbotBranch(models.Model):
             '* tener en cuenta que si se quieren exportar idiomas (además de traducción base en inglés) se deben '
             'instalar esos idiomas en la base "transifex"' % (tx_data, ','.join(modules_names)))
 
-    def sync_translations_to_github(self, next_date=False):
+    def sync_translations_to_github(self, last_sync_date=False):
         """ Para hacer commit y push a github usamos ayuda de este isssue
         https://github.com/PyGithub/PyGithub/issues/1628
         Y documentación acá https://pygithub.readthedocs.io/en/latest/github_objects/Repository.html
@@ -96,14 +99,12 @@ class RunbotBranch(models.Model):
                     continue
                 _logger.info('Sync transifex resource %s', tx_resource.slug)
                 for tx_language in tx_project.fetch('languages'):
-                    stats = transifex_api.resource_language_stats.get(project=tx_project, resource=tx_resource, language=tx_language)
-                    if not stats.last_translation_update:
-                        _logger.debug('Skiping %s as not updated since %s', tx_resource.slug, next_date or rec.next_sync_date)
-                        continue
-                    last_translation_update = parser.isoparse(stats.last_translation_update).replace(tzinfo=None)
-                    if not (next_date and last_translation_update > next_date or last_translation_update > rec.next_sync_date):
-                        _logger.debug('Skiping %s as not updated since %s', tx_resource.slug, next_date or rec.next_sync_date)
-                        continue
+                    if last_sync_date:
+                        stats = transifex_api.resource_language_stats.get(project=tx_project, resource=tx_resource, language=tx_language)
+                        last_translation_update = stats.last_translation_update and parser.isoparse(stats.last_translation_update).replace(tzinfo=None)
+                        if not last_translation_update or last_translation_update < last_sync_date:
+                            _logger.debug('Skiping %s as not updated since %s', tx_resource.slug, last_sync_date)
+                            continue
                     url = transifex_api.ResourceTranslationsAsyncDownload.download(resource=tx_resource, language=tx_language)
                     # ver contenido
                     translated_content = requests.get(url).text
@@ -138,4 +139,3 @@ class RunbotBranch(models.Model):
                         _logger.info("Pushing to GitHub")
                         master_refs = gh_repo.get_git_ref('heads/%s' % rec.name)
                         master_refs.edit(sha=commit.sha)
-                        
