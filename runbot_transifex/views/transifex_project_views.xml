@@ -17,7 +17,6 @@
                                     <field name="remote_id"/>
                                     <field name="name"/>
                                     <field name="next_sync_date"/>
-                                    <button name="sync_translations_to_github" type="object" help="Sync translations from transifex to github" icon="fa-refresh"/>
                                     <button name="get_push_data" type="object" help="Get push data" icon="fa-arrow-up" groups="base.group_no_one"/>
                                 </tree>
                             </field>
