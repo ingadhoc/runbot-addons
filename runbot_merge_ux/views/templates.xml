@@ -23,5 +23,22 @@
         </t>
     </template>
 
-</odoo>
+    <!-- Add the new column to the runbot PR list view to show the message of the PR involve. -->
+    <template id="stagings_page" inherit_id="runbot_merge.branch_stagings">
+        <xpath expr="//t[@t-foreach='staging.batch_ids']/../.." position="after">
+            <td>
+                <ul class="list-inline list-unstyled mb0">
+                    <t t-foreach="staging.batch_ids" t-as="batch">
+                        <t t-set="first_pr" t-value="batch.prs[-1]"/>
+                        <button class="btn btn-link dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" t-att-title="first_pr.message.split('\n')[0]">
+                            <t t-esc="first_pr.message"/>
+                            <span class="caret"/>
+                        </button>
 
+                    </t>
+                </ul>
+            </td>
+        </xpath>
+    </template>
+
+</odoo>
