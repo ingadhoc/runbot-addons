@@ -18,4 +18,5 @@
         'demo/runbot_pupulate_demo.xml',
         'demo/runbot_transifex_demo.xml',
     ],
+    'license': 'AGPL-3',
 }
