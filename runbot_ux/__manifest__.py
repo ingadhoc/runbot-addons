@@ -1,7 +1,7 @@
 {
     'name': "runbot",
     'summary': "Runbot",
-    'description': "Runbot for Odoo 13.0",
+    'description': "Runbot for Odoo 15.0",
     'author': "ADHOC SA",
     'website': "http://runbot.odoo.com",
     'category': 'Website',

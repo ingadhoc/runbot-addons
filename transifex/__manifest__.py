@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     'name': "Transifex Push",
     'summary': "Helper module to push translations to Transifex",
@@ -6,7 +5,7 @@
     'author': "ADHOC SA",
     'website': "http://runbot.odoo.com",
     'category': 'Website',
-    'version': '13.0.1.0.0',
+    'version': "15.0.1.0.0",
     'depends': [
         'base',
         'web',
