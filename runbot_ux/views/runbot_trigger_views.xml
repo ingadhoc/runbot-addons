@@ -3,6 +3,9 @@
         <field name="model">runbot.trigger</field>
         <field name="inherit_id" ref="runbot.repo_trigger_form"/>
         <field name="arch" type="xml">
+            <field name="project_id" position="after">
+                <field name="skip_requirements"></field>
+            </field>
             <sheet position="after">
                 <div class="oe_chatter">
                     <field name="message_follower_ids" widget="mail_followers"/>

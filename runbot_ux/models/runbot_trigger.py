@@ -10,3 +10,4 @@ class RunbotTrigger(models.Model):
     repo_ids = fields.Many2many(tracking=True) 
     dependency_ids = fields.Many2many(tracking=True) 
     version_domain = fields.Char(tracking=True)
+    skip_requirements = fields.Boolean('Skip requirements.txt auto install')
