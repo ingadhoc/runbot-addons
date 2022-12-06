@@ -12,4 +12,5 @@
         'views/runbot_repo_views.xml',
         'views/runbot_trigger_views.xml',
     ],
+    'license': 'AGPL-3',
 }

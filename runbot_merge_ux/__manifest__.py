@@ -10,4 +10,5 @@
     'data': [
         'views/templates.xml',
     ],
+    'license': 'AGPL-3',
 }
