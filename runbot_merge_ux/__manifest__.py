@@ -6,7 +6,7 @@
     'website': "http://runbot.odoo.com",
     'category': 'Website',
     'version': "15.0.1.0.0",
-    'depends': ['runbot', 'runbot_merge'],
+    'depends': ['runbot_merge'],
     'data': [
         'views/templates.xml',
     ],
