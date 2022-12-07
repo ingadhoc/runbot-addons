@@ -7,22 +7,6 @@
         </section>
     </template>
 
-    <!-- add menu to runbot merge -->
-    <template id="layout" inherit_id="runbot.layout">
-        <t t-if="projects" position="after">
-            <t t-if="runbot_merge_projects">
-                <li class="nav-item">
-                    <a class="nav-link" href="/runbot">Runbot</a>
-                </li>
-            </t>
-            <t t-if="not runbot_merge_projects">
-                <li class="nav-item">
-                    <a class="nav-link" href="/runbot_merge">Runbot Merge</a>
-                </li>
-            </t>
-        </t>
-    </template>
-
     <!-- Add the new column to the runbot PR list view to show the message of the PR involve. -->
     <template id="stagings_page" inherit_id="runbot_merge.branch_stagings">
         <xpath expr="//t[@t-foreach='staging.batch_ids']/../.." position="after">
