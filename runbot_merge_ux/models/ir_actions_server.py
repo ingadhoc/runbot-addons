@@ -11,7 +11,8 @@ class IrActionsServer(models.Model):
     def _get_eval_context(self, action=None):
         """ Enable re python library to json search and requests function from odoo tools """
         eval_context = super()._get_eval_context(action=action)
+        requests = wrap_module(__import__('requests'), ['get'])
         eval_context.update({
-            'requests': wrap_module(__import__('requests'), []),
+            'requests': requests,
         })
         return eval_context
