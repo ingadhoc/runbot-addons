@@ -4,7 +4,7 @@ class BuildParameters(models.Model):
 
     _inherit = 'runbot.build.params'
 
-    @api.depends('trigger_id')
+    @api.depends('dockerfile_id', 'dockerfile_id.skip_requirements')
     def _set_skip_requirements(self):
         for rec in self:
-            rec.skip_requirements = rec.trigger_id.skip_requirements
+            rec.skip_requirements = rec.dockerfile_id.skip_requirements
