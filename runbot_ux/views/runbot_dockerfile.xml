@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="dockerfile_form" model="ir.ui.view">
+        <field name="name">dockerfile.view.form</field>
+        <field name="model">runbot.dockerfile</field>
+        <field name="inherit_id" ref="runbot.dockerfile_form"/>
+        <field name="arch" type="xml">
+            <field name="to_build" position="after">
+                <field name="skip_requirements"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from odoo.http import route, request
 from odoo.addons.runbot_merge.controllers.dashboard import MergebotDashboard
 

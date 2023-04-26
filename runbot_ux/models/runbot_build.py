@@ -11,3 +11,5 @@ class RunbotBuild(models.Model):
         if self.version_id.custom_pre_commands:
             command.pres += safe_eval(self.version_id.custom_pre_commands)
         return command
+
+
