@@ -22,7 +22,7 @@ class RunbotBranch(models.Model):
     @api.model
     def _cron_sync_translations_to_github(self):
         now = fields.Datetime.now()
-        branch = self.search([('transifex_project_id', '!=', False),'|', ('next_sync_date', '<', now), ('next_sync_date', '=', False)], limit=1)
+        branch = self.search([('transifex_project_id.active', '=', True), '|', ('next_sync_date', '<', now), ('next_sync_date', '=', False)], limit=1)
         if branch:
             try:
                 last_sync_date = branch.next_sync_date
@@ -33,7 +33,8 @@ class RunbotBranch(models.Model):
             except Exception as e:
                 _logger.warning('Error al sincronizar transifex a github: %s', e)
                 branch.transifex_project_id.message_post(
-                    body='Error al sincronizar transifex a github. Esto es lo que obtuvimos: %s' % e)
+                    body='Error al sincronizar branch %s, en transifex project %s a github. Esto es lo que obtuvimos: %s' % (
+                        branch.display_name, branch.transifex_project_id.slug, e))
                 # restore sync date if we've a failure
                 branch.next_sync_date = last_sync_date
 
@@ -82,7 +83,7 @@ class RunbotBranch(models.Model):
             gh = github.Github(self.transifex_project_id.github_token)
             transifex_api.setup(auth=rec.transifex_project_id.api_token)
 
-            _logger.info("Sync transifex to github for branch %s (id=%s)", rec.remote_id.name, rec.id)
+            _logger.info("Sync transifex to github for branch %s (id=%s, tx project %s)", rec.remote_id.name, rec.id, rec.transifex_project_id.slug)
 
             tree_data = []
             gh_repo = gh.get_repo('%s/%s' % (rec.remote_id.owner, rec.remote_id.repo_name))

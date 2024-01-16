@@ -5,6 +5,7 @@
         <field name="arch" type="xml">
             <field name="remote_id" position="after">
                 <field name="transifex_project_id"/>
+                <field name="next_sync_date"/>
             </field>
         </field>
     </record>

@@ -8,6 +8,7 @@
                 <form>
                     <sheet>
                         <group>
+                            <field name="active" invisible="True"/>
                             <field name="slug"/>
                             <field name="organization_slug"/>
                             <field name="api_token" widget="password"/>
@@ -17,6 +18,7 @@
                                     <field name="remote_id"/>
                                     <field name="name"/>
                                     <field name="next_sync_date"/>
+                                    <button name="sync_translations_to_github" type="object" help="Sincroniza traducciones desde transifex a github sin verificar fecha" icon="fa-refresh"/>
                                     <button name="get_push_data" type="object" help="Get push data" icon="fa-arrow-up" groups="base.group_no_one"/>
                                 </tree>
                             </field>
