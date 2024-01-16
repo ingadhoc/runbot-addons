@@ -14,3 +14,4 @@ class TransifexProject(models.Model):
     api_token = fields.Char(required=True)
     periodicity = fields.Integer('Periodicity (days)')
     github_token = fields.Char()
+    active = fields.Boolean(default=True)
