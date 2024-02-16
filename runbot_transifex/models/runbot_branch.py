@@ -80,7 +80,7 @@ class RunbotBranch(models.Model):
         y ejemplos acá: https://pygithub.readthedocs.io/en/latest/examples.html
         """
         for rec in self.filtered('transifex_project_id'):
-            gh = github.Github(self.transifex_project_id.github_token)
+            gh = github.Github(rec.transifex_project_id.github_token)
             transifex_api.setup(auth=rec.transifex_project_id.api_token)
 
             _logger.info("Sync transifex to github for branch %s (id=%s, tx project %s)", rec.remote_id.name, rec.id, rec.transifex_project_id.slug)
@@ -93,10 +93,11 @@ class RunbotBranch(models.Model):
             tx_organization = transifex_api.Organization.get(slug=rec.transifex_project_id.organization_slug)
             tx_project = transifex_api.Project.get(
                 slug=rec.transifex_project_id.slug, organization=tx_organization)
-            tx_resources = tx_project.fetch('resources')
-            for tx_resource in tx_resources:
-                if tx_resource.slug not in modules_names:
-                    _logger.debug('Skiping %s as not found on transifex project', tx_resource.slug)
+            for modules_name in modules_names:
+                try:
+                    tx_resource = tx_project.fetch('resources').get(slug=modules_name)
+                except:
+                    _logger.warning('Skiping %s as not found on transifex project', modules_name)
                     continue
                 _logger.info('Sync transifex resource %s', tx_resource.slug)
                 for tx_language in tx_project.fetch('languages'):
