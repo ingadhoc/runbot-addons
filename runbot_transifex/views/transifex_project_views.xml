@@ -18,7 +18,11 @@
                                     <field name="remote_id"/>
                                     <field name="name"/>
                                     <field name="next_sync_date"/>
-                                    <button name="sync_translations_to_github" type="object" help="Sincroniza traducciones desde transifex a github sin verificar fecha" icon="fa-refresh"/>
+                                    <button name="sync_translations_to_github" type="object" icon="fa-refresh"
+                                        help="Sincroniza traducciones desde transifex a github sin verificar fecha" 
+                                        confirm="Sicroniza traducciones desde transifex a github sin verificar fecha. 
+                                        El timeout del httpworker puede hacer que el proceso no se complete. 
+                                        Se sugiere borrar Next Sync Date y esperar a que el cron lo ejecute. ¿Desea continuar igualmente?"/>
                                     <button name="get_push_data" type="object" help="Get push data" icon="fa-arrow-up" groups="base.group_no_one"/>
                                 </tree>
                             </field>

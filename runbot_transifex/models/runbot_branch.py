@@ -93,17 +93,17 @@ class RunbotBranch(models.Model):
             tx_organization = transifex_api.Organization.get(slug=rec.transifex_project_id.organization_slug)
             tx_project = transifex_api.Project.get(
                 slug=rec.transifex_project_id.slug, organization=tx_organization)
+            tx_languages = tx_project.fetch('languages')
             for module_name in modules_names:
                 try:
-                    # With both filter and get the Transifex API looks for the module_name to be contained in the resource slug. 
-                    # For this reason in some cases, we get more than one resource for a slug and we must filter it.
-                    tx_resources = tx_project.fetch('resources').filter(slug=module_name)
-                    tx_resource = [x for x in tx_resources if x.slug == module_name][0]
+                    # Obtenemos el resource de esta manera ya que filter y get con slug o name no hacen busqueda exacta.
+                    # Si coincide en alguna parte, devuelve varios resultados.
+                    tx_resource = transifex_api.resources.get('%s:r:%s' % (tx_project.id, module_name))
                 except:
                     _logger.warning('Skiping %s as not found on transifex project', module_name)
                     continue
                 _logger.info('Sync transifex resource %s', tx_resource.slug)
-                for tx_language in tx_project.fetch('languages'):
+                for tx_language in tx_languages:
                     if last_sync_date:
                         stats = transifex_api.resource_language_stats.get(project=tx_project, resource=tx_resource, language=tx_language)
                         last_translation_update = stats.last_translation_update and parser.isoparse(stats.last_translation_update).replace(tzinfo=None)
