@@ -16,6 +16,7 @@ class RunbotBranch(models.Model):
     _inherit = "runbot.branch"
 
     transifex_project_id = fields.Many2one('transifex.project')
+    last_sync_date = fields.Datetime()
     next_sync_date = fields.Datetime()
     repo_id = fields.Many2one(related='remote_id.repo_id')
 
@@ -25,18 +26,13 @@ class RunbotBranch(models.Model):
         branch = self.search([('transifex_project_id.active', '=', True), '|', ('next_sync_date', '<', now), ('next_sync_date', '=', False)], limit=1)
         if branch:
             try:
-                last_sync_date = branch.next_sync_date
-                # we first change date so that in case theres is a new translantion between we're syncking,
-                # that change syncked on next run
+                branch.sync_translations_to_github(last_sync_date=branch.last_sync_date)
                 branch.next_sync_date = fields.Datetime.add(now, days=branch.transifex_project_id.periodicity)
-                branch.sync_translations_to_github(last_sync_date=last_sync_date)
             except Exception as e:
                 _logger.warning('Error al sincronizar transifex a github: %s', e)
                 branch.transifex_project_id.message_post(
                     body='Error al sincronizar branch %s, en transifex project %s a github. Esto es lo que obtuvimos: %s' % (
                         branch.display_name, branch.transifex_project_id.slug, e))
-                # restore sync date if we've a failure
-                branch.next_sync_date = last_sync_date
 
     def get_push_data(self):
         self.ensure_one()
@@ -80,6 +76,8 @@ class RunbotBranch(models.Model):
         y ejemplos acá: https://pygithub.readthedocs.io/en/latest/examples.html
         """
         for rec in self.filtered('transifex_project_id'):
+            # We save the date to ensure any new translations made during syncing are captured in the next run.
+            start_sync_date = fields.Datetime.now()
             gh = github.Github(rec.transifex_project_id.github_token)
             transifex_api.setup(auth=rec.transifex_project_id.api_token)
 
@@ -144,3 +142,4 @@ class RunbotBranch(models.Model):
                         _logger.info("Pushing to GitHub")
                         master_refs = gh_repo.get_git_ref('heads/%s' % rec.name)
                         master_refs.edit(sha=commit.sha)
+            rec.last_sync_date = start_sync_date
