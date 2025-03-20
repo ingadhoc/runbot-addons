@@ -11,4 +11,5 @@
         'views/templates.xml',
     ],
     'license': 'AGPL-3',
+    'installable': False,
 }

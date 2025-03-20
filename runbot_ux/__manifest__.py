@@ -14,4 +14,5 @@
         'views/runbot_dockerfile.xml',
     ],
     'license': 'AGPL-3',
+    'installable': False,
 }
