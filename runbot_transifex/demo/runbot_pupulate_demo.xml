@@ -87,7 +87,7 @@
     </record>
 
     <!-- Triggers-->
-<!-- 
+<!--
     <record id="trigger_default_odoo" model="runbot.trigger">
         <field name="name">odoo</field>
         <field name="category_id" ref="runbot.default_category"/>
@@ -95,7 +95,7 @@
         <field name="config_id" ref="runbot.runbot_build_config_default"/>
         <field name="repo_ids" eval="[(4, ref('repo_odoo'))]"/>
         <field name="repo_ids" eval="[(4, ref('repo_odoo'))]"/>
-        <field name="ci_context"/>        
+        <field name="ci_context"/>
     </record>
     <record id="trigger_default_enterprise" model="runbot.trigger">
         <field name="name">enterprise</field>
@@ -104,7 +104,7 @@
         <field name="config_id" ref="runbot.runbot_build_config_default"/>
         <field name="repo_ids" eval="[(4, ref('repo_enterprise'))]"/>
         <field name="dependency_ids" eval="[(4, ref('repo_odoo'))]"/>
-        <field name="ci_context"/>        
+        <field name="ci_context"/>
     </record>
         <record id="trigger_default_runbot" model="runbot.trigger">
         <field name="name">enterprise</field>
@@ -113,7 +113,7 @@
         <field name="config_id" ref="runbot.runbot_build_config_default"/>
         <field name="repo_ids" eval="[(4, ref('repo_runbot'))]"/>
         <field name="dependency_ids" eval="[(4, ref('repo_odoo'))]"/>
-        <field name="ci_context"/>        
+        <field name="ci_context"/>
     </record> -->
 
 

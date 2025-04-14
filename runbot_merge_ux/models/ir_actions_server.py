@@ -1,18 +1,18 @@
-from odoo import models, api
+from odoo import api, models
 from odoo.tools.safe_eval import wrap_module
-import requests
 
 
 class IrActionsServer(models.Model):
-
-    _inherit = 'ir.actions.server'
+    _inherit = "ir.actions.server"
 
     @api.model
     def _get_eval_context(self, action=None):
-        """ Enable re python library to json search and requests function from odoo tools """
+        """Enable re python library to json search and requests function from odoo tools"""
         eval_context = super()._get_eval_context(action=action)
-        requests = wrap_module(__import__('requests'), ['get'])
-        eval_context.update({
-            'requests': requests,
-        })
+        requests = wrap_module(__import__("requests"), ["get"])
+        eval_context.update(
+            {
+                "requests": requests,
+            }
+        )
         return eval_context
