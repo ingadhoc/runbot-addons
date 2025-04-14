@@ -1,7 +1,6 @@
 {
     'name': "Tunbot Transifex",
     'summary': "Runbot Transifex",
-    'description': "Runbot for Odoo 15.0",
     'author': "ADHOC SA",
     'website': "http://runbot.odoo.com",
     'category': 'Website',
