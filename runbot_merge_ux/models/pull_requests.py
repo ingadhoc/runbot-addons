@@ -40,7 +40,7 @@ def _check_visibility_new(self, repo, branch_name, expected_head, token):
     # the "entry point" for the service
     url = 'https://github.com/{}.git/info/refs?service=git-upload-pack'.format(
         repo.name)
-    resp = requests.get(url, stream=True, auth=(token, ''))
+    resp = requests.get(url, stream=True, auth=(token, ''), timeout=30)
     if not resp.ok:
         return False
     for head, ref in parse_refs_smart(resp.raw.read):
