@@ -1,7 +1,7 @@
-from odoo import models, fields
+from odoo import fields, models
 
 
 class RunbotBuild(models.Model):
-    _inherit = 'runbot.dockerfile'
+    _inherit = "runbot.dockerfile"
 
-    skip_requirements = fields.Boolean('Skip requirements.txt auto install')
+    skip_requirements = fields.Boolean("Skip requirements.txt auto install")
