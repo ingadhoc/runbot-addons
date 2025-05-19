@@ -19,4 +19,5 @@
         'demo/runbot_transifex_demo.xml',
     ],
     'license': 'AGPL-3',
+    'installable': False,
 }
