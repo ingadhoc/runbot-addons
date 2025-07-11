@@ -25,11 +25,11 @@
     <record id="branch_tree" model="ir.ui.view">
         <field name="model">runbot.branch</field>
         <field name="arch" type="xml">
-            <tree>
+            <list>
                 <field name="repo_id"/>
                 <field name="remote_id"/>
                 <field name="name"/>
-            </tree>
+            </list>
         </field>
     </record>
 
