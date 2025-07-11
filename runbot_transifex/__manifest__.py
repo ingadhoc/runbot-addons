@@ -1,10 +1,10 @@
 {
-    "name": "Tunbot Transifex",
+    "name": "Runbot Transifex",
     "summary": "Runbot Transifex",
     "author": "ADHOC SA",
     "website": "http://runbot.odoo.com",
     "category": "Website",
-    "version": "15.0.1.1.0",
+    "version": "18.0.1.0.0",
     "depends": ["runbot"],
     "data": [
         "views/transifex_project_views.xml",
@@ -14,9 +14,8 @@
         "security/ir.model.access.csv",
     ],
     "demo": [
-        "demo/runbot_pupulate_demo.xml",
         "demo/runbot_transifex_demo.xml",
     ],
     "license": "AGPL-3",
-    "installable": False,
+    "installable": True,
 }

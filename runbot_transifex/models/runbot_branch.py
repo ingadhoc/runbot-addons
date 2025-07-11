@@ -1,9 +1,10 @@
 import logging
 import os
 
-import github
 import requests
 from dateutil import parser
+from github import Auth, Github, InputGitTreeElement
+from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from transifex.api import transifex_api
@@ -35,37 +36,31 @@ class RunbotBranch(models.Model):
         )
         if branch:
             try:
-                branch.sync_translations_to_github(last_sync_date=branch.last_sync_date)
                 branch.next_sync_date = fields.Datetime.add(now, days=branch.transifex_project_id.periodicity)
+                branch.sync_translations_to_github(last_sync_date=branch.last_sync_date)
             except Exception as e:
                 _logger.warning("Error al sincronizar transifex a github: %s", e)
-                branch.transifex_project_id.message_post(
-                    body="Error al sincronizar branch %s, en transifex project %s a github. Esto es lo que obtuvimos: %s"
-                    % (branch.display_name, branch.transifex_project_id.slug, e)
-                )
+                msg = Markup(
+                    """
+                    <p>Error al sincronizar branch %s, desde transifex project %s a github. Nueva fecha de actualización: %s.</p>
+                    <blockquote>%s</blockquote>
+                    """
+                ) % (branch.display_name, branch.transifex_project_id.slug, branch.next_sync_date, e)
+                branch.transifex_project_id.message_post(body=msg)
 
     def get_push_data(self):
         self.ensure_one()
 
-        gh = github.Github(self.transifex_project_id.github_token)
+        gh = Github(auth=Auth.Token(self.transifex_project_id.github_token))
         gh_repo = gh.get_repo("%s/%s" % (self.remote_id.owner, self.remote_id.repo_name))
         gh_content = gh_repo.get_contents("/", ref=self.name)
         modules_names = [x.name for x in gh_content if x.type == "dir"]
 
-        # no podemos hacer por commit porque para eso hace falta que efectivamente el repo esté descargado
-        # eso si, si queremos crear por data un commit podemos usar como ref de get_contents el hash del commit en vez
-        # del branch
-        # commit = self.env['runbot.commit'].search([('repo_id.remote_ids', '=', self.remote_id.id)], limit=1)
-        # if not commit:
-        #     raise UserError('No encontramos commit para este branch')
-        # modules_names = [x[1] for x in commit._get_available_modules()
-
         tx_data = [
             (
-                self.transifex_project_id.api_token,
+                self.transifex_project_id.tx_token,
                 self.transifex_project_id.organization_slug,
                 self.transifex_project_id.slug,
-                # como esto lo usamos en bases demo no tenemos commits
                 modules_names,
             )
         ]
@@ -91,13 +86,15 @@ class RunbotBranch(models.Model):
         for rec in self.filtered("transifex_project_id"):
             # We save the date to ensure any new translations made during syncing are captured in the next run.
             start_sync_date = fields.Datetime.now()
-            gh = github.Github(rec.transifex_project_id.github_token)
-            transifex_api.setup(auth=rec.transifex_project_id.api_token)
+            github_token = rec.transifex_project_id.github_token
+            if not github_token:
+                raise UserError("No hay token de github configurado.")
+            gh = Github(auth=Auth.Token(github_token))
+            transifex_api.setup(auth=rec.transifex_project_id.tx_token)
 
             _logger.info(
-                "Sync transifex to github for branch %s (id=%s, tx project %s)",
-                rec.remote_id.name,
-                rec.id,
+                "Sync transifex to github for branch %s (tx project %s)",
+                rec.display_name,
                 rec.transifex_project_id.slug,
             )
 
@@ -127,12 +124,11 @@ class RunbotBranch(models.Model):
                             stats.last_translation_update
                         ).replace(tzinfo=None)
                         if not last_translation_update or last_translation_update < last_sync_date:
-                            _logger.debug("Skiping %s as not updated since %s", tx_resource.slug, last_sync_date)
+                            _logger.info("Skiping %s as not updated since %s", tx_resource.slug, last_sync_date)
                             continue
                     url = transifex_api.ResourceTranslationsAsyncDownload.download(
                         resource=tx_resource, language=tx_language
                     )
-                    # ver contenido
                     translated_content = requests.get(url, timeout=30).text
 
                     if translated_content:
@@ -140,7 +136,7 @@ class RunbotBranch(models.Model):
                         gh_file_path = os.path.join(gh_i18n_path, tx_language.code + ".po")
                         new_file_blob = gh_repo.create_git_blob(translated_content, "utf-8")
                         tree_data.append(
-                            github.InputGitTreeElement(
+                            InputGitTreeElement(
                                 path=gh_file_path[1:], mode="100644", type="blob", sha=new_file_blob.sha
                             )
                         )
@@ -159,7 +155,11 @@ class RunbotBranch(models.Model):
                     # (creo que mas complejo)
                     compare = gh_repo.compare(parent.sha, commit.sha)
                     if not compare.files:
-                        _logger.info("No changes on translations, avoid pushing to GitHub")
+                        _logger.info(
+                            "No changes on translations on branch %s (tx project %s), avoid pushing to GitHub",
+                            rec.display_name,
+                            rec.transifex_project_id.slug,
+                        )
                     else:
                         _logger.info("Pushing to GitHub")
                         master_refs = gh_repo.get_git_ref("heads/%s" % rec.name)

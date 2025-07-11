@@ -10,9 +10,7 @@ model._cron_sync_translations_to_github()
         <field name="state">code</field>
         <field name="interval_type">minutes</field>
         <field name="user_id" ref="base.user_root"/>
-        <field eval="-1" name="numbercall"/>
         <field eval="5" name="priority"/>
-        <field eval="0" name="doall"/>
         <field eval="1" name="active"/>
         <field eval="10" name="interval_number"/>
     </record>
