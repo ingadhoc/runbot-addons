@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo>
-  <data noupdate="1">
+<odoo noupdate="1">
     <record id="runbot_build_config_step_transifex_push" model="runbot.build.config.step">
         <field name="name">transifex_push</field>
         <field name="job_type">python</field>
@@ -45,5 +44,4 @@ docker_params = {
 
 </field>
     </record>
-  </data>
 </odoo>
