@@ -2,15 +2,18 @@
 <odoo noupdate="1">
     <record id="runbot_build_config_step_transifex_push" model="runbot.build.config.step">
         <field name="name">transifex_push</field>
+        <field name="description">This step pushes the translations to Transifex. It can be executed after any "all" config step that creates databases.</field>
+        <field name="domain_filter">[('params_id.create_batch_id.bundle_id.is_base', '=', True)]</field>
         <field name="job_type">python</field>
+        <field name="protected" eval="True"/>
+        <field name="default_sequence">90</field>
+        <field name="create_db" eval="False"/>
+        <field name="db_name">all</field>
         <field name="cpu_limit">3600</field>
         <field name="test_enable" eval="False"/>
-        <field name="protected" eval="True"/>
-        <field name="db_name">all</field>
-        <field name="default_sequence">90</field>
-        <field name="domain_filter">[('params_id.create_batch_id.bundle_id.is_base', '=', True)]</field>
+        <field name="enable_log_db" eval="True"/>
         <field name="python_code">
-commit_links = build.params_id.commit_link_ids.filtered(lambda x: x.match_type in ('new', 'head') and x.branch_id.transifex_project_id)
+commit_links = build.params_id.commit_link_ids.filtered(lambda x: x.match_type in ['new', 'head'] and x.branch_id.transifex_project_id)
 transifex_projects = commit_links.mapped('branch_id.transifex_project_id')
 
 tx_data = []
@@ -21,7 +24,7 @@ for transifex_project in transifex_projects:
     for commit in commits:
         modules += [x[1] for x in commit._get_available_modules()]
     tx_data.append((
-        transifex_project.api_token,
+        transifex_project.tx_token,
         transifex_project.organization_slug,
         transifex_project.slug,
         modules))
@@ -29,19 +32,29 @@ for transifex_project in transifex_projects:
 env_variables = [
     'tx_data=%s' % tx_data,
 ]
-cmd = build._cmd()
-db_name = build.parent_id.database_ids.filtered(lambda x: x.db_suffix == self.db_name).name
-cmd += ['-d', db_name]
-cmd.append('-i transifex_push')
-cmd.append('--stop-after-init')
-cmd.append('--max-cron-threads=0')
-docker_params = {
-    'cmd': cmd,
-    'env_variables': env_variables,
-    'log_path': log_path, 'build_dir': build._path(), 'container_name': build._get_docker_name(),
-    'ro_volumes': build._checkout(),
-}
 
+build.params_id.write({"skip_requirements": True})
+cmd = build._cmd()
+
+# Buscamos la base que arranque con "all" por si hay otras bases generadas como "base"
+db_name = build.database_ids.filtered(lambda x: x.db_suffix.startswith(self.db_name)).name
+
+if db_name:
+    cmd += ['-d', db_name]
+    cmd += ['-i', 'transifex_push']
+    cmd.append('--stop-after-init')
+    cmd.append('--max-cron-threads=0')
+    docker_params = {
+        'cmd': cmd,
+        'env_variables': env_variables,
+        'log_path': log_path,
+        'build_dir': build._path(),
+        'container_name': build._get_docker_name(),
+        'ro_volumes': build._checkout(),
+    }
+
+else:
+    build._log('', 'No se encuentra una base de datos con el nombre indicado', level='ERROR')
 </field>
     </record>
 </odoo>
