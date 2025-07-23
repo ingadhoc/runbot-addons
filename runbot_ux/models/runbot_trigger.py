@@ -2,8 +2,7 @@ from odoo import fields, models
 
 
 class RunbotTrigger(models.Model):
-    _name = "runbot.trigger"
-    _inherit = ["runbot.trigger", "mail.activity.mixin"]
+    _inherit = "runbot.trigger"
 
     project_id = fields.Many2one(tracking=True)
     config_id = fields.Many2one(tracking=True)
