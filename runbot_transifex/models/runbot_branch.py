@@ -33,6 +33,7 @@ class RunbotBranch(models.Model):
                 ("next_sync_date", "=", False),
             ],
             limit=1,
+            order="next_sync_date asc",
         )
         if branch:
             try:
