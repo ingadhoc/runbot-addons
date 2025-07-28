@@ -14,47 +14,51 @@
         <field name="enable_log_db" eval="True"/>
         <field name="python_code">
 commit_links = build.params_id.commit_link_ids.filtered(lambda x: x.match_type in ['new', 'head'] and x.branch_id.transifex_project_id)
-transifex_projects = commit_links.mapped('branch_id.transifex_project_id')
 
-tx_data = []
-# list of tuples with [(token, organization_slug, project_slug, modules)]
-for transifex_project in transifex_projects:
-    modules = []
-    commits = commit_links.filtered(lambda x: x.branch_id.transifex_project_id == transifex_project).mapped('commit_id')
-    for commit in commits:
-        modules += [x[1] for x in commit._get_available_modules()]
-    tx_data.append((
-        transifex_project.tx_token,
-        transifex_project.organization_slug,
-        transifex_project.slug,
-        modules))
+if commit_links:
+    transifex_projects = commit_links.mapped('branch_id.transifex_project_id')
 
-env_variables = [
-    'tx_data=%s' % tx_data,
-]
+    tx_data = []
+    # list of tuples with [(token, organization_slug, project_slug, modules)]
+    for transifex_project in transifex_projects:
+        modules = []
+        commits = commit_links.filtered(lambda x: x.branch_id.transifex_project_id == transifex_project).mapped('commit_id')
+        for commit in commits:
+            modules += [x[1] for x in commit._get_available_modules()]
+        tx_data.append((
+            transifex_project.tx_token,
+            transifex_project.organization_slug,
+            transifex_project.slug,
+            modules))
 
-build.params_id.write({"skip_requirements": True})
-cmd = build._cmd()
+    env_variables = [
+        'tx_data=%s' % tx_data,
+    ]
 
-# Buscamos la base que arranque con "all" por si hay otras bases generadas como "base"
-db_name = build.database_ids.filtered(lambda x: x.db_suffix.startswith(self.db_name)).name
+    build.params_id.write({"skip_requirements": True})
+    cmd = build._cmd()
 
-if db_name:
-    cmd += ['-d', db_name]
-    cmd += ['-i', 'transifex_push']
-    cmd.append('--stop-after-init')
-    cmd.append('--max-cron-threads=0')
-    docker_params = {
-        'cmd': cmd,
-        'env_variables': env_variables,
-        'log_path': log_path,
-        'build_dir': build._path(),
-        'container_name': build._get_docker_name(),
-        'ro_volumes': build._checkout(),
-    }
+    # Buscamos la última base para correrlo sobre esa
+    db_name = build.database_ids[-1].name
 
+    if db_name:
+        cmd += ['-d', db_name]
+        cmd += ['-i', 'transifex_push']
+        cmd.append('--stop-after-init')
+        cmd.append('--max-cron-threads=0')
+        cmd.append('--load-language=es_ES')
+        docker_params = {
+            'cmd': cmd,
+            'env_variables': env_variables,
+            'log_path': log_path,
+            'build_dir': build._path(),
+            'container_name': build._get_docker_name(),
+            'ro_volumes': build._checkout(),
+        }
+
+    else:
+        build._log('', 'No se encuentra una base de datos con el nombre indicado', level='ERROR')
 else:
-    build._log('', 'No se encuentra una base de datos con el nombre indicado', level='ERROR')
-</field>
+    build._log('', 'No hay commits con ramas configuradas para enviar a Transifex', level='INFO')</field>
     </record>
 </odoo>
