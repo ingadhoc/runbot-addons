@@ -11,7 +11,6 @@
             <field name="code">model._schedule_auto_backup()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">False</field>
         </record>
 
