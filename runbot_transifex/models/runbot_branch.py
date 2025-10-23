@@ -130,7 +130,7 @@ class RunbotBranch(models.Model):
                     url = transifex_api.ResourceTranslationsAsyncDownload.download(
                         resource=tx_resource, language=tx_language
                     )
-                    translated_content = requests.get(url, timeout=30).text
+                    translated_content = requests.get(url, timeout=30).content.decode("utf-8")
 
                     if translated_content:
                         gh_i18n_path = os.path.join("/", tx_resource.slug, "i18n")
