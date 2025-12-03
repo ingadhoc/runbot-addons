@@ -122,7 +122,7 @@ class WeblateProject(models.Model):
             "name": "Branches",
             "type": "ir.actions.act_window",
             "res_model": "runbot.branch",
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "domain": [("weblate_project_id", "=", self.id)],
         }
 
