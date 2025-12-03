@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Weblate Project List View -->
+    <record id="view_weblate_project_list" model="ir.ui.view">
+        <field name="name">weblate.project.list</field>
+        <field name="model">weblate.project</field>
+        <field name="arch" type="xml">
+            <list string="Weblate Projects">
+                <field name="name"/>
+                <field name="version_id"/>
+                <field name="weblate_url"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Weblate Project Form View -->
+    <record id="view_weblate_project_form" model="ir.ui.view">
+        <field name="name">weblate.project.form</field>
+        <field name="model">weblate.project</field>
+        <field name="arch" type="xml">
+            <form string="Weblate Project">
+                <header>
+                    <button name="action_create_webhooks"
+                            string="Create Webhooks"
+                            type="object"
+                            class="oe_highlight"
+                            confirm="This will create or verify GitHub webhooks for all repositories in this project. Continue?"/>
+
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_branches"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-code-fork">
+                            <field name="branch_ids" widget="statinfo" string="Branches"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name" string="Project Name"/>
+                        <h1>
+                            <field name="name" placeholder="e.g., My Translation Project"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <label for="weblate_url"/>
+                        <div>
+                            <field name="weblate_url" placeholder="https://hosted.weblate.org" class="oe_inline"/>
+                            <button name="action_open_weblate" type="object" icon="fa-link" class="btn-link" title="Open in Weblate"/>
+                        </div>
+                        <field name="version_id"/>
+                        <field name="active" widget="boolean_toggle"/>
+                    </group>
+                    <notebook>
+                        <page string="Branches" name="branches">
+                            <field name="branch_ids" widget="many2many" options="{'no_create': True}">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="remote_id"/>
+                                    <field name="weblate_project_url" widget="url"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Weblate Project Action -->
+    <record id="action_weblate_project" model="ir.actions.act_window">
+        <field name="name">Weblate Projects</field>
+        <field name="res_model">weblate.project</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new Weblate Project
+            </p>
+            <p>
+                Configure Weblate projects to manage translations for your repositories.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu Item -->
+    <menuitem id="menu_weblate"
+              name="Weblate"
+              action="action_weblate_project"
+              web_icon="runbot_weblate,static/description/icon.png"
+              sequence="60"/>
+
+</odoo>
