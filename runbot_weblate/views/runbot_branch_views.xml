@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Runbot Branch Form View Inherit -->
+    <record id="view_runbot_branch_form_weblate" model="ir.ui.view">
+        <field name="name">runbot.branch.form.weblate</field>
+        <field name="model">runbot.branch</field>
+        <field name="inherit_id" ref="runbot.branch_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='remote_id']" position="after">
+                <field name="weblate_project_id" invisible="not bundle_id.is_base"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
