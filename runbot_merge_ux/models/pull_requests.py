@@ -1,0 +1,227 @@
+##############################################################################
+# For copyright and license notices, see __manifest__.py file in module root
+# directory
+##############################################################################
+
+import ast
+import logging
+import os
+import re
+import shutil
+import tempfile
+
+from odoo import fields, models
+from odoo.addons.runbot_merge import git
+
+_logger = logging.getLogger(__name__)
+
+VERSION_RE = re.compile(r"^(?P<series>\d+\.\d+)\.(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$")
+MANIFEST_VERSION_RE = re.compile(r"(?P<pre>[\"']version[\"']\s*:\s*[\"'])(?P<version>[\d\.]+)(?P<post>[\"'])")
+MANIFEST_NAME = "__manifest__.py"
+
+
+def _bump_version(version):
+    """Bump the minor version number."""
+    mo = VERSION_RE.match(version)
+    if not mo:
+        raise Exception(f"Cannot bump version for invalid version string: {version}")
+
+    series = mo.group("series")
+    major = mo.group("major")
+    minor = int(mo.group("minor")) + 1
+    patch = 0
+
+    return f"{series}.{major}.{minor}.{patch}"
+
+
+def _get_manifest_path(addon_dir):
+    """Get the manifest file path for an addon directory."""
+    manifest_path = os.path.join(addon_dir, MANIFEST_NAME)
+    if os.path.exists(manifest_path):
+        return manifest_path
+    return None
+
+
+class PullRequests(models.Model):
+    _inherit = "runbot_merge.pull_requests"
+
+    bump_policy = fields.Selection(
+        [
+            ("bump", "bump"),
+            ("nobump", "nobump"),
+        ],
+        string="Bump policy",
+    )
+    bump_warned = fields.Boolean(default=False)
+
+    def _parse_commands(self, author, comment, login):
+        comment = dict(comment or {})
+        body = comment.get("body") or ""
+
+        project = self.repository.project_id
+        bump_setting = None
+        for line in project._find_commands(body):
+            if re.search(r"\bnobump\b", line, flags=re.IGNORECASE):
+                bump_setting = "nobump"
+            elif re.search(r"\bbump\b", line, flags=re.IGNORECASE):
+                bump_setting = "bump"
+
+        if bump_setting:
+            if self.bump_policy != bump_setting:
+                self.bump_policy = bump_setting
+                # Reset warning flag when bump policy is set
+                self.bump_warned = False
+                self.env.ref("runbot_merge_ux.command.bump_policy")._send(
+                    repository=self.repository,
+                    pull_request=self.number,
+                    format_args={"new_policy": bump_setting},
+                )
+                # if the bump policy is the only thing preventing (but not
+                # *blocking*) staging, trigger a staging
+                if self.state == "ready":
+                    self.env.ref("runbot_merge.staging_cron")._trigger()
+            # strip the tokens so the base parser does not reject them
+            body = re.sub(r"\b(no)?bump\b", "", body, flags=re.IGNORECASE)
+            comment["body"] = body
+
+        return super()._parse_commands(author, comment, login)
+    def _bump_versions_in_repository(self, repository, github_api):
+        """Bump versions in a specific repository."""
+        if not self:
+            return
+
+        target_branch = self[0].target.name
+
+        # Create a temporary directory for our work
+        tmpdir = tempfile.mkdtemp(prefix="version_bump_")
+        try:
+            # Get the bare repository and clone it
+            bare_repo = git.get_local(repository)
+            if not bare_repo:
+                _logger.warning("Could not get repository %s", repository.name)
+                return
+
+            # Get the current remote HEAD (which should include the just-merged commits)
+            current_remote_head = github_api.head(target_branch)
+
+            # Clone from the current remote head (after the merge)
+            repo = bare_repo.clone(tmpdir)
+            # Checkout the specific commit that includes the merge
+            repo.with_config(check=True)._run("checkout", current_remote_head)
+
+            # Find and bump versions
+            manifest_updates = {}
+            bumped_info = {}  # addon_name -> new_version
+
+            for addon_dir in self._get_modified_addons_for_prs(repo, tmpdir):
+                manifest_path = _get_manifest_path(addon_dir)
+                if not manifest_path:
+                    _logger.warning("No manifest found in addon directory %s", addon_dir)
+                    continue
+
+                try:
+                    with open(manifest_path, "rb") as f:
+                        manifest = ast.literal_eval(f.read().decode("utf-8"))
+
+                    current_version = manifest.get("version")
+                    if not current_version:
+                        continue
+
+                    new_version = _bump_version(current_version)
+                    if new_version == current_version:
+                        continue
+
+                    if self._set_manifest_version(addon_dir, new_version):
+                        addon_name = os.path.basename(addon_dir)
+                        bumped_info[addon_name] = new_version
+                        _logger.info("Bumping %s from %s to %s", addon_name, current_version, new_version)
+
+                        # Read the updated manifest content and store for tree update
+                        with open(manifest_path) as f:
+                            updated_content = f.read()
+                        rel_path = os.path.relpath(manifest_path, tmpdir)
+                        manifest_updates[rel_path] = lambda repo, path, content=updated_content: content
+
+                except Exception as e:
+                    raise Exception(f"Failed to process addon in {addon_dir}") from e
+
+            if manifest_updates:
+                # Git tree workflow: current tree → new tree → new commit → push
+                current_tree = repo.get_tree("HEAD")
+                new_tree = repo.update_tree(current_tree, manifest_updates)
+
+                # Build commit message with bumped versions and merged PRs
+                pr_list = ", ".join(pr.display_name for pr in self)
+                addon_list = ", ".join(f"{name} {version}" for name, version in bumped_info.items())
+                commit_msg = f"[BOT] Bump version: {addon_list}\n\nMerged: {pr_list}"
+
+                # Create new commit pointing to updated tree
+                current_head = repo.stdout().with_config(text=True, check=True).rev_parse("HEAD").stdout.strip()
+                project = repository.project_id
+                commit_result = repo.commit_tree(
+                    tree=new_tree,
+                    parents=[current_head],
+                    message=commit_msg,
+                    author=(project.github_name or "Mergebot", project.github_email or "mergebot@odoo.com"),
+                    committer=(project.github_name or "Mergebot", project.github_email or "mergebot@odoo.com"),
+                )
+                if commit_result.returncode:
+                    raise Exception(f"Failed to create version bump commit: {commit_result.stderr}")
+                new_commit = commit_result.stdout.strip()
+
+                # Update HEAD to point to new commit, then push
+                repo.with_config(check=True).update_ref("HEAD", new_commit)
+                push_result = repo.push(git.source_url(repository), f"HEAD:refs/heads/{target_branch}")
+                if push_result.returncode:
+                    raise Exception(f"Failed to push version bump: {push_result.stderr}")
+
+                _logger.info(
+                    "Successfully pushed version bump to %s@%s: %s", repository.name, target_branch, new_commit
+                )
+
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def _get_modified_addons_for_prs(self, repo, repo_path):
+        """Get addons that were modified by the given PRs."""
+        modified_addons = set()
+        for pr in self:
+            # Fetch the PR branch from GitHub
+            fetch_result = repo.with_config(check=True)._run(
+                "fetch", git.source_url(pr.repository), f"pull/{pr.number}/head:pr-{pr.number}"
+            )
+            if fetch_result.returncode != 0:
+                raise Exception(f"Could not fetch PR {pr.number}: {fetch_result.stderr}")
+
+            # Get modified files using diff
+            diff_result = repo.stdout().with_config(text=True, check=True).diff("--name-only", f"HEAD...pr-{pr.number}")
+            if diff_result.returncode != 0:
+                raise Exception(f"Could not get diff for PR {pr.number}: {diff_result.stderr}")
+            modified_folders = set(
+                line.split("/")[0] for line in diff_result.stdout.strip().split("\n") if line.strip()
+            )
+            for folder in modified_folders:
+                addon_path = os.path.join(repo_path, folder)
+                if os.path.exists(os.path.join(addon_path, MANIFEST_NAME)):
+                    modified_addons.add(addon_path)
+
+        return list(modified_addons)
+
+    def _set_manifest_version(self, addon_dir, version):
+        """Set the version in the manifest file."""
+        manifest_path = _get_manifest_path(addon_dir)
+        if not manifest_path:
+            raise Exception(f"No manifest file found in {addon_dir}")
+
+        try:
+            with open(manifest_path) as f:
+                manifest_content = f.read()
+
+            new_manifest = MANIFEST_VERSION_RE.sub(r"\g<pre>" + version + r"\g<post>", manifest_content)
+
+            with open(manifest_path, "w") as f:
+                f.write(new_manifest)
+
+            return True
+        except Exception as e:
+            raise Exception(f"Failed to set version in {manifest_path}") from e
