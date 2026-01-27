@@ -43,8 +43,11 @@ class Stagings(models.Model):
         for repository, prs in repos_prs.items():
             try:
                 prs._bump_versions_in_repository(repository, gh[repository.name])
+                prs.write({"bump_status": "success"})
             except Exception as e:
                 _logger.error(f"Failed to bump versions in {repository.name}: {e}", exc_info=True)
+                prs.write({"bump_status": "failed"})
+                prs._notify_provider_version_bump_failure(str(e))
                 for pr in prs:
                     self.env.ref("runbot_merge_ux.command.version_bump_failure")._send(
                         repository=pr.repository,

@@ -4,12 +4,14 @@
 ##############################################################################
 
 import ast
+import json
 import logging
 import os
 import re
 import shutil
 import tempfile
 
+import requests
 from odoo import fields, models
 from odoo.addons.runbot_merge import git
 
@@ -53,6 +55,13 @@ class PullRequests(models.Model):
         string="Bump policy",
     )
     bump_warned = fields.Boolean(default=False)
+    bump_status = fields.Selection(
+        [
+            ("success", "Bump Success"),
+            ("failed", "Bump Failed"),
+        ],
+        help="Status of the version bump operation after merge",
+    )
 
     def _parse_commands(self, author, comment, login):
         comment = dict(comment or {})
@@ -85,6 +94,70 @@ class PullRequests(models.Model):
             comment["body"] = body
 
         return super()._parse_commands(author, comment, login)
+
+    def _notify_provider_version_bump_failure(self, error_message):
+        """Notify the SaaS provider about version bump failures."""
+        try:
+            provider_url = self.env["ir.config_parameter"].sudo().get_param("saas_client.provider_url")
+            provider_token = self.env["ir.config_parameter"].sudo().get_param("saas_provider.odoo_project_token")
+
+            if not provider_url:
+                _logger.warning("No provider_url configured, cannot notify version bump failure")
+                return
+
+            if not provider_token:
+                _logger.warning("No saas_provider.odoo_project_token configured, cannot notify version bump failure")
+                return
+
+            url = f"{provider_url}/runbot_merge/version_bump_failure"
+            headers = {
+                "content-type": "application/json",
+                "token": provider_token,
+            }
+
+            # Prepare data for each PR
+            pr_data = []
+            for pr in self:
+                pr_data.append(
+                    {
+                        "url": pr.github_url,
+                        "author": f"{pr.author.name} ({pr.author.github_login})" if pr.author else "Unknown",
+                        "reviewer": f"{pr.reviewed_by.name} ({pr.reviewed_by.github_login})"
+                        if pr.reviewed_by
+                        else "Unknown",
+                        "error": error_message,
+                    }
+                )
+
+            params = {
+                "failures": pr_data,
+            }
+
+            data = {
+                "jsonrpc": "2.0",
+                "method": "call",
+                "params": params,
+            }
+
+            res = requests.post(
+                url,
+                data=json.dumps(data),
+                headers=headers,
+                timeout=30,
+            )
+
+            if res.status_code != 200:
+                _logger.error("Error notifying provider: %s", res.status_code)
+                return
+            result = res.json().get("result")
+            if result and result.get("error"):
+                _logger.error("Error notifying provider: %s", result.get("error"))
+            else:
+                _logger.info("Successfully notified provider about version bump failures")
+
+        except Exception as e:
+            _logger.error("Failed to notify provider about version bump failure: %s", e, exc_info=True)
+
     def _bump_versions_in_repository(self, repository, github_api):
         """Bump versions in a specific repository."""
         if not self:
@@ -106,6 +179,10 @@ class PullRequests(models.Model):
 
             # Clone from the current remote head (after the merge)
             repo = bare_repo.clone(tmpdir)
+
+            # Fetch the specific commit from GitHub to ensure we have it
+            repo.with_config(check=True)._run("fetch", git.source_url(repository), current_remote_head)
+
             # Checkout the specific commit that includes the merge
             repo.with_config(check=True)._run("checkout", current_remote_head)
 
@@ -186,15 +263,25 @@ class PullRequests(models.Model):
         """Get addons that were modified by the given PRs."""
         modified_addons = set()
         for pr in self:
-            # Fetch the PR branch from GitHub
-            fetch_result = repo.with_config(check=True)._run(
+            # Fetch the PR branch and its target base from GitHub
+            fetch_pr = repo.with_config(check=True)._run(
                 "fetch", git.source_url(pr.repository), f"pull/{pr.number}/head:pr-{pr.number}"
             )
-            if fetch_result.returncode != 0:
-                raise Exception(f"Could not fetch PR {pr.number}: {fetch_result.stderr}")
+            if fetch_pr.returncode != 0:
+                raise Exception(f"Could not fetch PR {pr.number}: {fetch_pr.stderr}")
+            fetch_target = repo.with_config(check=True)._run(
+                "fetch", git.source_url(pr.repository), f"{pr.target.name}:target-{pr.target.name}"
+            )
+            if fetch_target.returncode != 0:
+                raise Exception(f"Could not fetch target branch {pr.target.name}: {fetch_target.stderr}")
 
-            # Get modified files using diff
-            diff_result = repo.stdout().with_config(text=True, check=True).diff("--name-only", f"HEAD...pr-{pr.number}")
+            # Get modified files using diff against the merge-base
+            # This ensures we only see changes from this PR, not from other merged PRs
+            diff_result = (
+                repo.stdout()
+                .with_config(text=True, check=True)
+                .diff("--name-only", f"target-{pr.target.name}...pr-{pr.number}")
+            )
             if diff_result.returncode != 0:
                 raise Exception(f"Could not get diff for PR {pr.number}: {diff_result.stderr}")
             modified_folders = set(
