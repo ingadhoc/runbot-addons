@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pull_requests_form" model="ir.ui.view">
+        <field name="name">runbot_merge.pull_requests.form.inherit</field>
+        <field name="model">runbot_merge.pull_requests</field>
+        <field name="inherit_id" ref="runbot_merge.runbot_merge_form_prs"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_retry_version_bump"
+                        type="object"
+                        string="Retry Version Bump"
+                        groups="runbot_merge.group_admin"
+                        invisible="bump_status != 'failed'"/>
+            </xpath>
+            <page name="state" position="inside">
+                <group>
+                    <field name="bump_policy"/>
+                    <field name="bump_status"/>
+                </group>
+            </page>
+        </field>
+    </record>
+</odoo>

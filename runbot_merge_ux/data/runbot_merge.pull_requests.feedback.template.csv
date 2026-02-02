@@ -17,3 +17,8 @@ The merge was successful, but the version was not bumped automatically. You may 
 
 pr: the pull request that was merged
 error_message: the error message describing what failed"
+runbot_merge_ux.command.version_bump_success,":white_check_mark: {pr.ping} **Version Bump Successful**
+
+The manifest versions have been automatically bumped and pushed by administrators.","Notifies when automatic version bumping succeeds after merge.
+
+pr: the pull request that was merged"
