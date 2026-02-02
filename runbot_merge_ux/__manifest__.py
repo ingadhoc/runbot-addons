@@ -30,6 +30,7 @@
     ],
     "data": [
         "data/runbot_merge.pull_requests.feedback.template.csv",
+        "views/runbot_merge_pull_requests_views.xml",
     ],
     "post_load": "post_load",
     "installable": True,
