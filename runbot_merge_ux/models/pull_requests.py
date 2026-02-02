@@ -52,7 +52,7 @@ class PullRequests(models.Model):
             ("bump", "bump"),
             ("nobump", "nobump"),
         ],
-        string="Bump policy",
+        tracking=True,
     )
     bump_warned = fields.Boolean(default=False)
     bump_status = fields.Selection(
@@ -60,6 +60,7 @@ class PullRequests(models.Model):
             ("success", "Bump Success"),
             ("failed", "Bump Failed"),
         ],
+        tracking=True,
         help="Status of the version bump operation after merge",
     )
 
@@ -94,6 +95,25 @@ class PullRequests(models.Model):
             comment["body"] = body
 
         return super()._parse_commands(author, comment, login)
+
+    def action_retry_version_bump(self):
+        """Retry version bump for failed PRs."""
+        self.ensure_one()
+        if self.bump_status != "failed":
+            return
+
+        try:
+            github_api = self.repository.github()
+            self._bump_versions_in_repository(self.repository, github_api)
+            self.bump_status = "success"
+            self.env.ref("runbot_merge_ux.command.version_bump_success")._send(
+                repository=self.repository,
+                pull_request=self.number,
+                format_args={"pr": self},
+            )
+        except Exception as e:
+            error_msg = str(e)
+            self.message_post(body=f"Version bump retry failed: {error_msg}")
 
     def _notify_provider_version_bump_failure(self, error_message):
         """Notify the SaaS provider about version bump failures."""
