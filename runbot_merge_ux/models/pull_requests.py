@@ -70,11 +70,15 @@ class PullRequests(models.Model):
 
         project = self.repository.project_id
         bump_setting = None
+        bump_done = False
+
         for line in project._find_commands(body):
             if re.search(r"\bnobump\b", line, flags=re.IGNORECASE):
                 bump_setting = "nobump"
             elif re.search(r"\bbump\b", line, flags=re.IGNORECASE):
                 bump_setting = "bump"
+            elif re.search(r"\bbumped\b", line, flags=re.IGNORECASE):
+                bump_done = True
 
         if bump_setting:
             if self.bump_policy != bump_setting:
@@ -92,6 +96,13 @@ class PullRequests(models.Model):
                     self.env.ref("runbot_merge.staging_cron")._trigger()
             # strip the tokens so the base parser does not reject them
             body = re.sub(r"\b(no)?bump\b", "", body, flags=re.IGNORECASE)
+            comment["body"] = body
+
+        if bump_done:
+            if self.bump_status != "success" and self.bump_policy == "bump":
+                self.bump_status = "success"
+            # strip the token so the base parser does not reject it
+            body = re.sub(r"\bbumped\b", "", body, flags=re.IGNORECASE)
             comment["body"] = body
 
         return super()._parse_commands(author, comment, login)
