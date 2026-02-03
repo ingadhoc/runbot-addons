@@ -2,9 +2,10 @@ id,template,help
 runbot_merge_ux.pr.bump_policy,"{pr.ping}this PR cannot be staged without a bump policy. Please specify either `bump` or `nobump` in your comment.","Comment when a PR is ready but doesn't have a bump policy set
 
 pr: the pr we can't stage"
-runbot_merge_ux.command.bump_policy,"Bump policy set to {new_policy}.","Responds to the setting of the bump policy.
+runbot_merge_ux.command.bump_policy,"Bump policy set to {new_policy}. Modules: {modules}","Responds to the setting of the bump policy.
 
-new_policy: the bump policy that was set"
+new_policy: the bump policy that was set
+modules: optional comma-separated list of specific modules to bump"
 runbot_merge_ux.command.version_bump_failure,":warning: {pr.ping} **Version Bump Failed**
 
 The automatic version bump for this PR failed with the following error:
@@ -22,3 +23,11 @@ runbot_merge_ux.command.version_bump_success,":white_check_mark: {pr.ping} **Ver
 The manifest versions have been automatically bumped and pushed by administrators.","Notifies when automatic version bumping succeeds after merge.
 
 pr: the pull request that was merged"
+runbot_merge_ux.command.bump_invalid_modules,"The following modules specified for bumping are not modified in this PR: **{invalid_modules}**
+
+Please verify the module names and ensure they are part of the changes in this PR. Only modules with modifications can be bumped.
+
+**The bump policy has not been set.** Please correct the module names and use the `bump` command again.","Posted when user requests bump=module1,module2 but some modules are not in the PR changes.
+
+pr: the PR
+invalid_modules: comma-separated list of invalid modules"
