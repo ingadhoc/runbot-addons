@@ -15,6 +15,7 @@
             <page name="state" position="inside">
                 <group>
                     <field name="bump_policy"/>
+                    <field name="bump_modules"/>
                     <field name="bump_status"/>
                 </group>
             </page>
