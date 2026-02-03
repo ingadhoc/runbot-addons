@@ -54,6 +54,10 @@ class PullRequests(models.Model):
         ],
         tracking=True,
     )
+    bump_modules = fields.Char(
+        help="Comma-separated list of specific modules to bump. If empty, all modified modules are bumped.",
+        tracking=True,
+    )
     bump_warned = fields.Boolean(default=False)
     bump_status = fields.Selection(
         [
@@ -70,32 +74,59 @@ class PullRequests(models.Model):
 
         project = self.repository.project_id
         bump_setting = None
+        bump_modules = None
         bump_done = False
 
         for line in project._find_commands(body):
             if re.search(r"\bnobump\b", line, flags=re.IGNORECASE):
                 bump_setting = "nobump"
+            elif match := re.search(r"\bbump=([\w,]+)", line, flags=re.IGNORECASE):
+                bump_setting = "bump"
+                bump_modules = match.group(1)
             elif re.search(r"\bbump\b", line, flags=re.IGNORECASE):
                 bump_setting = "bump"
             elif re.search(r"\bbumped\b", line, flags=re.IGNORECASE):
                 bump_done = True
 
         if bump_setting:
-            if self.bump_policy != bump_setting:
+            # Validate specific modules if provided
+            if bump_modules:
+                requested_module_names = [m.strip() for m in bump_modules.split(",")]
+                modified_module_names = self._get_modified_modules_names()
+                invalid_module_names = [m for m in requested_module_names if m not in modified_module_names]
+
+                if invalid_module_names:
+                    if self.bump_policy or self.bump_modules:
+                        self.bump_policy = False
+                        self.bump_modules = False
+                    invalid_list = ", ".join(invalid_module_names)
+                    self.env.ref("runbot_merge_ux.command.bump_invalid_modules")._send(
+                        repository=self.repository,
+                        pull_request=self.number,
+                        format_args={"pr": self, "invalid_modules": invalid_list},
+                    )
+                    body = re.sub(r"\bbump(=[\w,]+)?\b", "", body, flags=re.IGNORECASE)
+                    body = re.sub(r"\bnobump\b", "", body, flags=re.IGNORECASE)
+                    comment["body"] = body
+                    return super()._parse_commands(author, comment, login)
+
+            if self.bump_policy != bump_setting or self.bump_modules != bump_modules:
                 self.bump_policy = bump_setting
+                self.bump_modules = bump_modules
                 # Reset warning flag when bump policy is set
                 self.bump_warned = False
                 self.env.ref("runbot_merge_ux.command.bump_policy")._send(
                     repository=self.repository,
                     pull_request=self.number,
-                    format_args={"new_policy": bump_setting},
+                    format_args={"new_policy": bump_setting, "modules": bump_modules or "all"},
                 )
                 # if the bump policy is the only thing preventing (but not
                 # *blocking*) staging, trigger a staging
                 if self.state == "ready":
                     self.env.ref("runbot_merge.staging_cron")._trigger()
             # strip the tokens so the base parser does not reject them
-            body = re.sub(r"\b(no)?bump\b", "", body, flags=re.IGNORECASE)
+            body = re.sub(r"\bbump(=[\w,]+)?\b", "", body, flags=re.IGNORECASE)
+            body = re.sub(r"\bnobump\b", "", body, flags=re.IGNORECASE)
             comment["body"] = body
 
         if bump_done:
@@ -106,6 +137,25 @@ class PullRequests(models.Model):
             comment["body"] = body
 
         return super()._parse_commands(author, comment, login)
+
+    def _get_modified_modules_names(self):
+        """Get the set of module names modified in this PR using GitHub API."""
+        self.ensure_one()
+        try:
+            github_api = self.repository.github()
+            files_response = github_api("get", f"pulls/{self.number}/files")
+            files = files_response.json() if files_response else []
+
+            modified_module_names = set()
+            for file_info in files:
+                filename = file_info.get("filename", "")
+                # Get the top-level folder from the file path
+                if "/" in filename:
+                    modified_module_names.add(filename.split("/")[0])
+            return modified_module_names
+        except Exception as e:
+            _logger.warning("Could not get modified modules for PR %s: %s", self.number, e)
+            return set()
 
     def action_retry_version_bump(self):
         """Retry version bump for failed PRs."""
@@ -221,7 +271,19 @@ class PullRequests(models.Model):
             manifest_updates = {}
             bumped_info = {}  # addon_name -> new_version
 
-            for addon_dir in self._get_modified_addons_for_prs(repo, tmpdir):
+            # Get list of specific modules to bump if specified
+            if self and self[0].bump_modules:
+                specific_module_names = [m.strip() for m in self[0].bump_modules.split(",")]
+                addons_to_bump = []
+                for module_name in specific_module_names:
+                    addon_path = os.path.join(tmpdir, module_name)
+                    if os.path.exists(os.path.join(addon_path, MANIFEST_NAME)):
+                        addons_to_bump.append(addon_path)
+            else:
+                addons_to_bump = self._get_modified_addons_for_prs(repo, tmpdir)
+
+            for addon_dir in addons_to_bump:
+                addon_name = os.path.basename(addon_dir)
                 manifest_path = _get_manifest_path(addon_dir)
                 if not manifest_path:
                     _logger.warning("No manifest found in addon directory %s", addon_dir)
@@ -291,7 +353,7 @@ class PullRequests(models.Model):
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def _get_modified_addons_for_prs(self, repo, repo_path):
-        """Get addons that were modified by the given PRs."""
+        """Get list of addon paths that were modified by the given PRs."""
         modified_addons = set()
         for pr in self:
             # Fetch the PR branch and its target base from GitHub
