@@ -3,6 +3,4 @@
 # directory
 ##############################################################################
 
-from . import controllers
-from . import models
-from .patch import post_load
+from . import dashboard

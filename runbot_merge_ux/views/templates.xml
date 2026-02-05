@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="view_pull_request_info_open" inherit_id="runbot_merge.view_pull_request_info_open">
+        <xpath expr="//li[@t-att-class=&quot;'ok' if pr._approved else 'fail'&quot;]" position="after">
+            <li t-att-class="'ok' if pr.bump_policy else 'fail'">
+                Bump policy
+                <t t-if="pr.bump_policy">: <t t-out="pr.bump_policy"/></t>
+                <ul t-if="pr.bump_modules">
+                    <li>
+                        Modules: <t t-out="pr.bump_modules"/>
+                    </li>
+                </ul>
+            </li>
+        </xpath>
+    </template>
+
+    <template id="view_pull_request_info_merged" inherit_id="runbot_merge.view_pull_request_info_merged">
+        <xpath expr="//div[@class='alert alert-success']" position="inside">
+            <div t-if="pr.bump_status">
+                <p>Bump status: <span t-out="pr.bump_status"/></p>
+            </div>
+        </xpath>
+    </template>
+</odoo>

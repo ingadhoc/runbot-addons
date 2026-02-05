@@ -115,11 +115,6 @@ class PullRequests(models.Model):
                 self.bump_modules = bump_modules
                 # Reset warning flag when bump policy is set
                 self.bump_warned = False
-                self.env.ref("runbot_merge_ux.command.bump_policy")._send(
-                    repository=self.repository,
-                    pull_request=self.number,
-                    format_args={"new_policy": bump_setting, "modules": bump_modules or "all"},
-                )
                 # if the bump policy is the only thing preventing (but not
                 # *blocking*) staging, trigger a staging
                 if self.state == "ready":
