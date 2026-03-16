@@ -305,7 +305,7 @@ class PullRequests(models.Model):
                         with open(manifest_path) as f:
                             updated_content = f.read()
                         rel_path = os.path.relpath(manifest_path, tmpdir)
-                        manifest_updates[rel_path] = lambda repo, path, content=updated_content: content
+                        manifest_updates[rel_path] = lambda repo, path, content=updated_content: content.encode()
 
                 except Exception as e:
                     raise Exception(f"Failed to process addon in {addon_dir}") from e
