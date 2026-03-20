@@ -12,6 +12,7 @@ import shutil
 import tempfile
 
 import requests
+from markupsafe import Markup
 from odoo import fields, models
 from odoo.addons.runbot_merge import git
 
@@ -159,8 +160,7 @@ class PullRequests(models.Model):
             return
 
         try:
-            github_api = self.repository.github()
-            self._bump_versions_in_repository(self.repository, github_api)
+            self._bump_versions_in_repository(self.repository)
             self.bump_status = "success"
             self.env.ref("runbot_merge_ux.command.version_bump_success")._send(
                 repository=self.repository,
@@ -168,8 +168,8 @@ class PullRequests(models.Model):
                 format_args={"pr": self},
             )
         except Exception as e:
-            error_msg = str(e)
-            self.message_post(body=f"Version bump retry failed: {error_msg}")
+            error_msg = Markup(str(e)).replace("\n", Markup("<br/>"))
+            self.message_post(body=Markup("Version bump retry failed<br/>") + error_msg)
 
     def _notify_provider_version_bump_failure(self, error_message):
         """Notify the SaaS provider about version bump failures."""
@@ -234,7 +234,7 @@ class PullRequests(models.Model):
         except Exception as e:
             _logger.error("Failed to notify provider about version bump failure: %s", e, exc_info=True)
 
-    def _bump_versions_in_repository(self, repository, github_api):
+    def _bump_versions_in_repository(self, repository):
         """Bump versions in a specific repository."""
         if not self:
             return
@@ -249,17 +249,14 @@ class PullRequests(models.Model):
             if not bare_repo:
                 _logger.warning("Could not get repository %s", repository.name)
                 return
-
-            # Get the current remote HEAD (which should include the just-merged commits)
-            current_remote_head = github_api.head(target_branch)
-
             # Clone from the current remote head (after the merge)
             repo = bare_repo.clone(tmpdir)
 
-            # Fetch the specific commit from GitHub to ensure we have it
-            repo.with_config(check=True)._run("fetch", git.source_url(repository), current_remote_head)
+            # Fetch from the remote directly to avoid a stale bare repo cache.
+            repo.with_config(check=True)._run("fetch", git.source_url(repository), target_branch)
 
-            # Checkout the specific commit that includes the merge
+            # Use FETCH_HEAD (the exact SHA fetched) to avoid ambiguity with local refs.
+            current_remote_head = repo.stdout().with_config(text=True, check=True).rev_parse("FETCH_HEAD").stdout.strip()
             repo.with_config(check=True)._run("checkout", current_remote_head)
 
             # Find and bump versions
@@ -267,7 +264,7 @@ class PullRequests(models.Model):
             bumped_info = {}  # addon_name -> new_version
 
             # Get list of specific modules to bump if specified
-            if self and self[0].bump_modules:
+            if self[0].bump_modules:
                 specific_module_names = [m.strip() for m in self[0].bump_modules.split(",")]
                 addons_to_bump = []
                 for module_name in specific_module_names:
@@ -338,7 +335,20 @@ class PullRequests(models.Model):
                 repo.with_config(check=True).update_ref("HEAD", new_commit)
                 push_result = repo.push(git.source_url(repository), f"HEAD:refs/heads/{target_branch}")
                 if push_result.returncode:
-                    raise Exception(f"Failed to push version bump: {push_result.stderr}")
+                    try:
+                        ls_remote = repo.stdout().with_config(text=True)._run(
+                            "ls-remote", git.source_url(repository), f"refs/heads/{target_branch}"
+                        )
+                        actual_remote_head = ls_remote.stdout.split()[0] if ls_remote.stdout.strip() else "unknown"
+                    except Exception:
+                        actual_remote_head = "unknown"
+                    raise Exception(
+                        f"Failed to push version bump to: {push_result.stderr}\n"
+                        f"Expected remote HEAD : {current_remote_head}\n"
+                        f"Actual remote HEAD   : {actual_remote_head}\n"
+                        f"Commit tried to push : {new_commit}\n"
+                        f"Parent commit        : {current_head}"
+                    )
 
                 _logger.info(
                     "Successfully pushed version bump to %s@%s: %s", repository.name, target_branch, new_commit
