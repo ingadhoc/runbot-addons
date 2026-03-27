@@ -17,12 +17,12 @@ class Stagings(models.Model):
         """Extended safety dance that includes version bumping after successful merge."""
         result = super()._safety_dance(gh)
         try:
-            self._post_merge_version_bump(gh)
+            self._post_merge_version_bump()
         except Exception as e:
             _logger.error("Error in post-merge version bump: %s", e, exc_info=True)
         return result
 
-    def _post_merge_version_bump(self, gh):
+    def _post_merge_version_bump(self):
         """Perform version bump after successful merge."""
         # Find PRs that require version bumps
         bump_prs = self.mapped("batch_ids.prs").filtered(lambda pr: pr.bump_policy == "bump")
@@ -42,7 +42,7 @@ class Stagings(models.Model):
         # Process each repository
         for repository, prs in repos_prs.items():
             try:
-                prs._bump_versions_in_repository(repository, gh[repository.name])
+                prs._bump_versions_in_repository(repository)
                 prs.write({"bump_status": "success"})
             except Exception as e:
                 _logger.error(f"Failed to bump versions in {repository.name}: {e}", exc_info=True)
