@@ -16,8 +16,9 @@ _original_stage = stagings_create.stage
 
 def stage_with_bump_validation(pr, info, related_prs=()):
     """Enhanced stage function that validates bump_policy before staging"""
-    # Check bump policy similar to merge_method validation
-    if not pr.bump_policy:
+    # Use PR-level policy, falling back to project default
+    effective_policy = pr.bump_policy or pr.repository.project_id.default_bump_policy
+    if not effective_policy:
         if not pr.bump_warned:
             # Use the same pattern as merge_method notification
             pr.env.ref("runbot_merge_ux.pr.bump_policy")._send(

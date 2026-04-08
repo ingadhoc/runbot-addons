@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_project_form_inherit_bump" model="ir.ui.view">
+        <field name="name">runbot_merge.project.form.inherit</field>
+        <field name="model">runbot_merge.project</field>
+        <field name="inherit_id" ref="runbot_merge.runbot_merge_form_project"/>
+        <field name="arch" type="xml">
+            <field name="batch_limit" position="after">
+                <field name="default_bump_policy"/>
+            </field>
+        </field>
+    </record>
+</odoo>
