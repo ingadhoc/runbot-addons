@@ -3,5 +3,6 @@
 # directory
 ##############################################################################
 
+from . import project
 from . import pull_requests
 from . import stagings
