@@ -13,9 +13,9 @@ _logger = logging.getLogger(__name__)
 class Stagings(models.Model):
     _inherit = "runbot_merge.stagings"
 
-    def _safety_dance(self, gh):
+    def _safety_dance(self):
         """Extended safety dance that includes version bumping after successful merge."""
-        result = super()._safety_dance(gh)
+        result = super()._safety_dance()
         try:
             self._post_merge_version_bump()
         except Exception as e:
