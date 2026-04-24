@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="repo_form_inherit" model="ir.ui.view">
+        <field name="name">runbot.repo.form.inherit</field>
+        <field name="model">runbot.repo</field>
+        <field name="inherit_id" ref="runbot.repo_form"/>
+        <field name="arch" type="xml">
+            <field name="modules" position="after">
+                <field name="test_modules"/>
+            </field>
+        </field>
+    </record>
+</odoo>
