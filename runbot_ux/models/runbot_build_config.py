@@ -6,10 +6,7 @@ class RunbotBuildConfigStep(models.Model):
 
     def _run_install_odoo(self, build):
         res = super()._run_install_odoo(build)
-        if not res or not res.get("cmd"):
-            return res
-
-        if not self.test_enable:
+        if not res or not res.get("cmd") or not self.test_enable:
             return res
 
         dynamic_tags = build._get_test_tags_from_modules()
@@ -17,7 +14,6 @@ class RunbotBuildConfigStep(models.Model):
             return res
 
         cmd = res["cmd"]
-        # cmd.cmd is the underlying list of command arguments
         # Dynamic module tags go first; any tags already set by the config step
         # (self.test_tags) act as a final filter applied on top.
         if "--test-tags" in cmd.cmd:
@@ -25,5 +21,17 @@ class RunbotBuildConfigStep(models.Model):
             cmd.cmd[idx + 1] = ",".join(dynamic_tags) + "," + cmd.cmd[idx + 1]
         elif "--test-enable" in cmd.cmd:
             cmd.extend(["--test-tags", ",".join(dynamic_tags)])
+        else:
+            build._log(
+                "_run_install_odoo",
+                "runbot_ux: --test-enable not found in cmd, dynamic test tags not injected (%s)"
+                % ",".join(dynamic_tags),
+                level="WARNING",
+            )
+            return res
 
+        build._log(
+            "_run_install_odoo",
+            "runbot_ux: injected dynamic test tags: %s" % ",".join(dynamic_tags),
+        )
         return res
