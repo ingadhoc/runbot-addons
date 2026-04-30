@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="config_step_form_inherit" model="ir.ui.view">
+        <field name="name">runbot.build.config.step.form.inherit</field>
+        <field name="model">runbot.build.config.step</field>
+        <field name="inherit_id" ref="runbot.config_step_form"/>
+        <field name="arch" type="xml">
+            <field name="test_tags" position="replace">
+                <field name="test_tags" widget="text"/>
+            </field>
+        </field>
+    </record>
+</odoo>
