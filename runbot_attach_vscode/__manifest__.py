@@ -10,6 +10,7 @@
         "data/ir_config_parameter.xml",
         "data/runbot_docker_layer.xml",
         "views/runbot_build_views.xml",
+        "views/runbot_frontend_templates.xml",
     ],
     "license": "AGPL-3",
     "installable": True,

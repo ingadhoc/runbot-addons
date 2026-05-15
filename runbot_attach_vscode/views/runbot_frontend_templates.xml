@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="runbot_build_button_vscode" inherit_id="runbot.build_button">
+        <xpath expr="//a[@data-runbot='wakeup']" position="after">
+            <a groups="base.group_user"
+               t-if="bu.local_state == 'running' and bu.vscode_url"
+               t-att-href="bu.vscode_url"
+               target="_blank"
+               class="btn btn-default"
+               title="Open VS Code session"
+               aria-label="Open VS Code session">
+                <i class="fa fa-code"/>
+            </a>
+        </xpath>
+    </template>
+
+</odoo>
