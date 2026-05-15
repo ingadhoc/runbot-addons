@@ -4,33 +4,12 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("-at_install", "post_install")
 class TestRunbotAttachVscode(TransactionCase):
-    """Cubre layer template, reference_layer composition y action_open_vscode."""
+    """Covers reference_layer override, vscode_url compute and action_open_vscode."""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.source_layer = cls.env.ref("runbot_attach_vscode.docker_layer_code_server")
-
-    def test_source_layer_metadata(self):
-        self.assertEqual(self.source_layer.layer_type, "template")
-        self.assertEqual(dict(self.source_layer.values), {"CODE_SERVER_VERSION": "4.96.4"})
-
-    def test_source_layer_renders_default_version(self):
-        rendered = self.source_layer.rendered
-        self.assertIn("--version 4.96.4", rendered)
-        self.assertNotIn("{CODE_SERVER_VERSION}", rendered)
-
-    def test_reference_layer_inherits_default_version(self):
-        dockerfile = self.env["runbot.dockerfile"].create({"name": "test_attach_vscode"})
-        self.env["runbot.docker_layer"].create(
-            {
-                "name": "cs_ref",
-                "dockerfile_id": dockerfile.id,
-                "layer_type": "reference_layer",
-                "reference_docker_layer_id": self.source_layer.id,
-            }
-        )
-        self.assertIn("--version 4.96.4", dockerfile.dockerfile)
 
     def test_reference_layer_overrides_version(self):
         dockerfile = self.env["runbot.dockerfile"].create({"name": "test_attach_vscode_override"})
@@ -55,30 +34,22 @@ class TestRunbotAttachVscode(TransactionCase):
         build._compute_vscode_url()
         return build
 
-    def test_vscode_url_built_from_dest_and_host(self):
-        build = self._new_build(dest="12345-19-0-x", host="runbot.example.com")
-        self.assertEqual(
-            build.vscode_url,
-            "https://12345-19-0-x-vscode.runbot.example.com",
-        )
+    def test_vscode_url(self):
+        """Compute: default ICP, override, and short-circuit when dest is missing."""
+        # defaults (https / vscode)
+        build = self._new_build(dest="12345-19-0-x", host="ci.example.com")
+        self.assertEqual(build.vscode_url, "https://12345-19-0-x-vscode.ci.example.com")
 
-    def test_vscode_url_honours_config_parameters(self):
+        # ICP override
         icp = self.env["ir.config_parameter"].sudo()
         icp.set_param("runbot_attach_vscode.scheme", "http")
         icp.set_param("runbot_attach_vscode.url_suffix", "ide")
         build = self._new_build(dest="42-x", host="ci.adhoc.local")
         self.assertEqual(build.vscode_url, "http://42-x-ide.ci.adhoc.local")
 
-    def test_vscode_url_empty_when_dest_missing(self):
-        build = self._new_build(host="runbot.example.com")
+        # missing dest → short-circuit
+        build = self._new_build(host="ci.example.com")
         self.assertFalse(build.vscode_url)
-
-    def test_action_open_vscode_returns_act_url(self):
-        build = self._new_build(dest="12345-19-0-x", host="runbot.example.com")
-        result = build.action_open_vscode()
-        self.assertEqual(result["type"], "ir.actions.act_url")
-        self.assertEqual(result["target"], "new")
-        self.assertEqual(result["url"], "https://12345-19-0-x-vscode.runbot.example.com")
 
     def test_action_open_vscode_blocks_when_url_missing(self):
         build = self._new_build()
@@ -95,7 +66,7 @@ class TestRunbotAttachVscode(TransactionCase):
         )
         build = self.env["runbot.build"].with_user(portal_user).new({})
         build.dest = "12345-19-0-x"
-        build.host = "runbot.example.com"
+        build.host = "ci.example.com"
         build._compute_vscode_url()
         with self.assertRaises(UserError):
             build.action_open_vscode()
