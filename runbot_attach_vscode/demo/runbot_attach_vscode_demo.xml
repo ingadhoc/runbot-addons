@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- Attaches code-server to the runbot default Dockerfile, so every demo
+         build that uses it is reachable via VS Code. Loaded with demo data
+         only; the admin can delete this record if they want demo builds
+         without code-server, without it being re-created on update. -->
+    <record id="docker_default_cs_ref" model="runbot.docker_layer">
+        <field name="name">cs_ref</field>
+        <field name="dockerfile_id" ref="runbot.docker_default"/>
+        <field name="layer_type">reference_layer</field>
+        <field name="reference_docker_layer_id" ref="docker_layer_code_server"/>
+        <field name="sequence">200</field>
+    </record>
+
+    <!-- Force vscode_url recompute on builds created before this file loaded
+         (vscode_url stores once and only depends on dest + host, so the new
+         reference layer above does not propagate on its own). -->
+    <function model="runbot.build" name="_compute_vscode_url">
+        <value model="runbot.build" eval="obj().search([]).ids"/>
+    </function>
+
+</odoo>

@@ -12,6 +12,9 @@
         "views/runbot_build_views.xml",
         "views/runbot_frontend_templates.xml",
     ],
+    "demo": [
+        "demo/runbot_attach_vscode_demo.xml",
+    ],
     "license": "AGPL-3",
     "installable": True,
 }
