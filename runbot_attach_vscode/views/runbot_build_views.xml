@@ -16,9 +16,6 @@
                             class="oe_highlight"/>
                 </header>
             </xpath>
-            <xpath expr="//field[@name='build_url']" position="after">
-                <field name="vscode_url" widget="url" readonly="1"/>
-            </xpath>
         </field>
     </record>
 

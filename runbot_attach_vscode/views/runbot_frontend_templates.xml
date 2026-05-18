@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <template id="runbot_build_button_vscode" inherit_id="runbot.build_button">
-        <xpath expr="//a[@data-runbot='wakeup']" position="after">
-            <a groups="base.group_user"
-               t-if="bu.local_state == 'running' and bu.vscode_url"
-               t-att-href="bu.vscode_url"
-               target="_blank"
-               class="btn btn-default"
-               title="Open VS Code session"
-               aria-label="Open VS Code session">
-                <i class="fa fa-code"/>
-            </a>
-        </xpath>
-    </template>
+    <record id="runbot_build_menu_vscode" model="ir.ui.view">
+        <field name="name">runbot.build_menu.vscode</field>
+        <field name="type">qweb</field>
+        <field name="inherit_id" ref="runbot.build_menu"/>
+        <field name="arch" type="xml">
+            <xpath expr="//a[i[hasclass('fa-refresh')]]" position="after">
+                <a class="dropdown-item"
+                   groups="base.group_user"
+                   t-if="bu.global_state in ['done', 'running'] and bu.vscode_url"
+                   t-att-href="bu.vscode_url"
+                   target="_blank">
+                    <i class="fa fa-code"/>
+                    Open VS Code
+                </a>
+            </xpath>
+        </field>
+    </record>
 
 </odoo>
