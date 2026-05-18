@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- Version -->
+    <record id="version_18_0" model="runbot.version">
+        <field name="name">18.0</field>
+        <field name="sequence">180</field>
+    </record>
+
+    <!-- Repo + remote (mode=disabled to keep the demo inert) -->
+    <record id="repo_acme" model="runbot.repo">
+        <field name="name">acme-addons</field>
+        <field name="project_id" ref="runbot.main_project"/>
+        <field name="mode">disabled</field>
+    </record>
+
+    <record id="remote_acme" model="runbot.remote">
+        <field name="name">git@example.local:acme/acme-addons.git</field>
+        <field name="repo_id" ref="repo_acme"/>
+    </record>
+
+    <!-- Trigger (drives the "[version] All" label on builds in the frontend) -->
+    <record id="trigger_all" model="runbot.trigger">
+        <field name="name">All</field>
+        <field name="project_id" ref="runbot.main_project"/>
+        <field name="repo_ids" eval="[(6, 0, [ref('repo_acme')])]"/>
+        <field name="config_id" ref="runbot.runbot_build_config_default"/>
+    </record>
+
+    <!-- Bundles: base 18.0 + a feature branch -->
+    <record id="bundle_18_0" model="runbot.bundle">
+        <field name="name">18.0</field>
+        <field name="project_id" ref="runbot.main_project"/>
+        <field name="is_base" eval="True"/>
+    </record>
+
+    <record id="bundle_feature" model="runbot.bundle">
+        <field name="name">18.0-t-99999-demo</field>
+        <field name="project_id" ref="runbot.main_project"/>
+    </record>
+
+    <!-- Commits -->
+    <record id="commit_main_a" model="runbot.commit">
+        <field name="name">9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b</field>
+        <field name="repo_id" ref="repo_acme"/>
+        <field name="author">Alice Demo</field>
+        <field name="author_email">alice@example.local</field>
+        <field name="subject">[ADD] demo_feature: initial scaffold</field>
+        <field name="tree_hash">aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111</field>
+    </record>
+
+    <record id="commit_main_b" model="runbot.commit">
+        <field name="name">1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c</field>
+        <field name="repo_id" ref="repo_acme"/>
+        <field name="author">Bob Demo</field>
+        <field name="author_email">bob@example.local</field>
+        <field name="subject">[REF] demo_feature: prune low-value tests</field>
+        <field name="tree_hash">bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222</field>
+    </record>
+
+    <record id="commit_feature_a" model="runbot.commit">
+        <field name="name">c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0</field>
+        <field name="repo_id" ref="repo_acme"/>
+        <field name="author">Alice Demo</field>
+        <field name="author_email">alice@example.local</field>
+        <field name="subject">[IMP] demo_feature: template layer + button</field>
+        <field name="tree_hash">cccc3333cccc3333cccc3333cccc3333cccc3333</field>
+    </record>
+
+    <record id="commit_feature_b" model="runbot.commit">
+        <field name="name">d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3</field>
+        <field name="repo_id" ref="repo_acme"/>
+        <field name="author">Alice Demo</field>
+        <field name="author_email">alice@example.local</field>
+        <field name="subject">[FIX] demo_feature: handle missing host gracefully</field>
+        <field name="tree_hash">dddd4444dddd4444dddd4444dddd4444dddd4444</field>
+    </record>
+
+    <!-- Commit links -->
+    <record id="commit_link_main_a" model="runbot.commit.link">
+        <field name="commit_id" ref="commit_main_a"/>
+    </record>
+
+    <record id="commit_link_main_b" model="runbot.commit.link">
+        <field name="commit_id" ref="commit_main_b"/>
+    </record>
+
+    <record id="commit_link_feature_a" model="runbot.commit.link">
+        <field name="commit_id" ref="commit_feature_a"/>
+    </record>
+
+    <record id="commit_link_feature_b" model="runbot.commit.link">
+        <field name="commit_id" ref="commit_feature_b"/>
+    </record>
+
+    <!-- Batches (mix of states) -->
+    <record id="batch_main_1" model="runbot.batch">
+        <field name="bundle_id" ref="bundle_18_0"/>
+        <field name="state">done</field>
+        <field name="commit_link_ids" eval="[(6, 0, [ref('commit_link_main_a')])]"/>
+    </record>
+
+    <record id="batch_main_2" model="runbot.batch">
+        <field name="bundle_id" ref="bundle_18_0"/>
+        <field name="state">ready</field>
+        <field name="commit_link_ids" eval="[(6, 0, [ref('commit_link_main_b')])]"/>
+    </record>
+
+    <record id="batch_feature_1" model="runbot.batch">
+        <field name="bundle_id" ref="bundle_feature"/>
+        <field name="state">ready</field>
+        <field name="commit_link_ids" eval="[(6, 0, [ref('commit_link_feature_a')])]"/>
+    </record>
+
+    <record id="batch_feature_2" model="runbot.batch">
+        <field name="bundle_id" ref="bundle_feature"/>
+        <field name="state">preparing</field>
+        <field name="commit_link_ids" eval="[(6, 0, [ref('commit_link_feature_b')])]"/>
+    </record>
+
+    <!-- Build params (unique fingerprint per commit_link) -->
+    <record id="params_main_a" model="runbot.build.params">
+        <field name="version_id" ref="version_18_0"/>
+        <field name="project_id" ref="runbot.main_project"/>
+        <field name="trigger_id" ref="trigger_all"/>
+        <field name="commit_link_ids" eval="[(6, 0, [ref('commit_link_main_a')])]"/>
+        <field name="create_batch_id" ref="batch_main_1"/>
+    </record>
+
+    <record id="params_main_b" model="runbot.build.params">
+        <field name="version_id" ref="version_18_0"/>
+        <field name="project_id" ref="runbot.main_project"/>
+        <field name="trigger_id" ref="trigger_all"/>
+        <field name="commit_link_ids" eval="[(6, 0, [ref('commit_link_main_b')])]"/>
+        <field name="create_batch_id" ref="batch_main_2"/>
+    </record>
+
+    <record id="params_feature_a" model="runbot.build.params">
+        <field name="version_id" ref="version_18_0"/>
+        <field name="project_id" ref="runbot.main_project"/>
+        <field name="trigger_id" ref="trigger_all"/>
+        <field name="commit_link_ids" eval="[(6, 0, [ref('commit_link_feature_a')])]"/>
+        <field name="create_batch_id" ref="batch_feature_1"/>
+    </record>
+
+    <record id="params_feature_b" model="runbot.build.params">
+        <field name="version_id" ref="version_18_0"/>
+        <field name="project_id" ref="runbot.main_project"/>
+        <field name="trigger_id" ref="trigger_all"/>
+        <field name="commit_link_ids" eval="[(6, 0, [ref('commit_link_feature_b')])]"/>
+        <field name="create_batch_id" ref="batch_feature_2"/>
+    </record>
+
+    <!-- Builds: varied states for view inspection -->
+    <record id="build_main_done_ok" model="runbot.build">
+        <field name="params_id" ref="params_main_a"/>
+        <field name="local_state">done</field>
+        <field name="local_result">ok</field>
+        <field name="host">runbot.example.local</field>
+    </record>
+
+    <record id="build_main_done_ko" model="runbot.build">
+        <field name="params_id" ref="params_main_b"/>
+        <field name="local_state">done</field>
+        <field name="local_result">ko</field>
+        <field name="host">runbot.example.local</field>
+    </record>
+
+    <record id="build_feature_running" model="runbot.build">
+        <field name="params_id" ref="params_feature_a"/>
+        <field name="local_state">running</field>
+        <field name="host">runbot.example.local</field>
+    </record>
+
+    <record id="build_feature_pending" model="runbot.build">
+        <field name="params_id" ref="params_feature_b"/>
+        <field name="local_state">pending</field>
+    </record>
+
+    <!-- Batch slots: link batches to builds via params (frontend traversal) -->
+    <record id="slot_main_1" model="runbot.batch.slot">
+        <field name="batch_id" ref="batch_main_1"/>
+        <field name="trigger_id" ref="trigger_all"/>
+        <field name="params_id" ref="params_main_a"/>
+        <field name="build_id" ref="build_main_done_ok"/>
+        <field name="link_type">created</field>
+    </record>
+
+    <record id="slot_main_2" model="runbot.batch.slot">
+        <field name="batch_id" ref="batch_main_2"/>
+        <field name="trigger_id" ref="trigger_all"/>
+        <field name="params_id" ref="params_main_b"/>
+        <field name="build_id" ref="build_main_done_ko"/>
+        <field name="link_type">created</field>
+    </record>
+
+    <record id="slot_feature_running" model="runbot.batch.slot">
+        <field name="batch_id" ref="batch_feature_1"/>
+        <field name="trigger_id" ref="trigger_all"/>
+        <field name="params_id" ref="params_feature_a"/>
+        <field name="build_id" ref="build_feature_running"/>
+        <field name="link_type">created</field>
+    </record>
+
+    <record id="slot_feature_pending" model="runbot.batch.slot">
+        <field name="batch_id" ref="batch_feature_2"/>
+        <field name="trigger_id" ref="trigger_all"/>
+        <field name="params_id" ref="params_feature_b"/>
+        <field name="build_id" ref="build_feature_pending"/>
+        <field name="link_type">created</field>
+    </record>
+
+    <!-- last_batch wiring (frontend filters by this) -->
+    <function model="runbot.bundle" name="write">
+        <value eval="[ref('bundle_18_0')]"/>
+        <value eval="{'last_batch': ref('batch_main_2')}"/>
+    </function>
+
+    <function model="runbot.bundle" name="write">
+        <value eval="[ref('bundle_feature')]"/>
+        <value eval="{'last_batch': ref('batch_feature_2')}"/>
+    </function>
+
+</odoo>
