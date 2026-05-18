@@ -10,6 +10,27 @@ class TestRunbotAttachVscode(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.source_layer = cls.env.ref("runbot_attach_vscode.docker_layer_code_server")
+        # Dockerfile + reference layer that the vscode_url compute requires.
+        cls.dockerfile_with_layer = cls.env["runbot.dockerfile"].create(
+            {"name": "test_attach_vscode_dockerfile"},
+        )
+        cls.env["runbot.docker_layer"].create(
+            {
+                "name": "test_cs_ref",
+                "dockerfile_id": cls.dockerfile_with_layer.id,
+                "layer_type": "reference_layer",
+                "reference_docker_layer_id": cls.source_layer.id,
+            },
+        )
+        cls.version = cls.env["runbot.version"].create({"name": "test-vscode-version"})
+        cls.project = cls.env.ref("runbot.main_project")
+        cls.params = cls.env["runbot.build.params"].create(
+            {
+                "version_id": cls.version.id,
+                "project_id": cls.project.id,
+                "dockerfile_id": cls.dockerfile_with_layer.id,
+            },
+        )
 
     def test_reference_layer_overrides_version(self):
         dockerfile = self.env["runbot.dockerfile"].create({"name": "test_attach_vscode_override"})
@@ -25,8 +46,9 @@ class TestRunbotAttachVscode(TransactionCase):
         self.assertIn("--version 4.97.0", dockerfile.dockerfile)
         self.assertNotIn("--version 4.96.4", dockerfile.dockerfile)
 
-    def _new_build(self, dest=None, host=None):
+    def _new_build(self, dest=None, host=None, params=None):
         build = self.env["runbot.build"].new({})
+        build.params_id = params if params is not None else self.params
         if dest is not None:
             build.dest = dest
         if host is not None:
@@ -49,6 +71,19 @@ class TestRunbotAttachVscode(TransactionCase):
 
         # missing dest → short-circuit
         build = self._new_build(host="ci.example.com")
+        self.assertFalse(build.vscode_url)
+
+    def test_vscode_url_hidden_without_layer(self):
+        """Build with dest+host but the Dockerfile lacks our code-server reference."""
+        dockerfile_no_layer = self.env["runbot.dockerfile"].create({"name": "test_no_layer"})
+        params_no_layer = self.env["runbot.build.params"].create(
+            {
+                "version_id": self.version.id,
+                "project_id": self.project.id,
+                "dockerfile_id": dockerfile_no_layer.id,
+            },
+        )
+        build = self._new_build(dest="42-x", host="ci.example.com", params=params_no_layer)
         self.assertFalse(build.vscode_url)
 
     def test_action_open_vscode_blocks_when_url_missing(self):
