@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Per-build server block that routes <dest>-vscode.<host> to the
+         code-server we start alongside Odoo on container port 8071, mapped
+         to host port build.port + 2 (see runbot_build_config.py).
+
+         Injected at the server_build_anchor inside the t-foreach over
+         builds, so each build gets its own block. Order matters: this is
+         placed BEFORE the generic <dest>(-suffix)?.<host> block so its
+         more specific regex matches the vscode subdomain first.
+
+         WebSocket headers (Upgrade/Connection) are required by
+         code-server for the editor RPC. -->
+    <record id="runbot_nginx_config_vscode" model="ir.ui.view">
+        <field name="name">runbot.nginx_config.vscode</field>
+        <field name="type">qweb</field>
+        <field name="inherit_id" ref="runbot.nginx_config"/>
+        <field name="arch" type="xml">
+            <xpath expr="//t[@id='server_build_anchor']" position="inside">
+server {
+    listen 8080;
+    server_name ~^<t t-out="re_escape(build.dest)"/>-vscode\.<t t-out="re_escape(build.host)"/>$;
+    location / {
+        proxy_pass http://127.0.0.1:<t t-out="build.port + 2"/>;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $real_scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header X-Forwarded-For 127.0.0.42;
+        proxy_set_header X-Real-IP 127.0.0.42;
+    }
+}
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
