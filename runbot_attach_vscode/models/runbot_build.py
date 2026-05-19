@@ -61,22 +61,14 @@ class RunbotBuild(models.Model):
         }
 
     def _ensure_code_server_running(self, container_name):
-        """Idempotently start code-server inside the running build container.
+        """Start code-server inside the running build container.
 
-        Uses the docker CLI directly via subprocess. We previously used
-        docker-py's exec_run(detach=True), but with that combination the
-        container's process did not survive the SDK call (likely because
-        AttachStdout/Stderr stay true and conflict with Detach=true).
-        Calling `docker exec -d` straight is the path we verified works
-        manually.
-
-        The shell guard (`pgrep -f code-server >/dev/null || exec
-        code-server ...`) makes a second click a no-op if code-server is
-        already up.
+        Repeated calls are safe: if code-server is already up, a second
+        attempt fails with EADDRINUSE and exits without affecting the
+        running instance.
         """
         inner_cmd = (
-            "pgrep -f code-server >/dev/null || "
-            f"exec code-server --bind-addr 0.0.0.0:{VSCODE_CONTAINER_PORT} "
+            f"code-server --bind-addr 0.0.0.0:{VSCODE_CONTAINER_PORT} "
             "--auth none /data/build "
             ">/tmp/code-server.log 2>&1"
         )
