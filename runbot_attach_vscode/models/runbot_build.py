@@ -29,13 +29,18 @@ class RunbotBuild(models.Model):
             for layer in self.params_id.dockerfile_id.layer_ids
         )
 
-    @api.depends("dest", "host", "params_id.dockerfile_id")
+    @api.depends("global_state", "params_id.dockerfile_id")
     def _compute_vscode_url(self):
         get_param = self.env["ir.config_parameter"].sudo().get_param
         suffix = get_param("runbot_attach_vscode.url_suffix", default="vscode")
         scheme = get_param("runbot_attach_vscode.scheme", default="https")
         for build in self:
-            if build.dest and build.host and build._has_vscode_layer():
+            if (
+                build.global_state in ("done", "running")
+                and build.dest
+                and build.host
+                and build._has_vscode_layer()
+            ):
                 build.vscode_url = f"{scheme}://{build.dest}-{suffix}.{build.host}"
             else:
                 build.vscode_url = False
