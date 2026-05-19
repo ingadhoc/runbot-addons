@@ -3,11 +3,12 @@ Runbot Attach VS Code
 =====================
 
 Bakes `code-server <https://github.com/coder/code-server>`_ (VS Code in
-the browser) into runbot Dockerfiles via a reusable
+the browser) plus a curated set of AI coding CLIs (Claude Code, OpenAI
+Codex, Google Gemini, OpenCode) into runbot Dockerfiles via a reusable
 ``runbot.docker_layer``. Each wakeable ``runbot.build`` whose Dockerfile
 attaches that layer exposes an *Open VS Code* button that resolves to a
 live code-server session running alongside Odoo inside the build's
-container.
+container, with the AI CLIs ready to use from its integrated terminal.
 
 How to use
 ==========
@@ -58,6 +59,28 @@ Both the run-step extension and the URL helper are no-ops when the
 build's Dockerfile does not attach the code-server reference layer
 (see ``_has_vscode_layer``), so builds on unrelated Dockerfiles keep
 working unchanged.
+
+AI CLIs baked into the layer
+============================
+
+On top of code-server, the layer installs Node 20 (from NodeSource) and
+the following npm-distributed CLIs, available globally in the build
+container:
+
+* ``claude`` — `Claude Code <https://docs.claude.com/en/docs/claude-code/overview>`_
+  (``@anthropic-ai/claude-code``).
+* ``codex`` — `OpenAI Codex CLI <https://github.com/openai/codex>`_
+  (``@openai/codex``).
+* ``gemini`` — `Google Gemini CLI <https://github.com/google-gemini/gemini-cli>`_
+  (``@google/gemini-cli``).
+* ``opencode`` — `OpenCode <https://opencode.ai/>`_ (``opencode-ai``).
+
+All four are installed in the same ``RUN`` as code-server to keep the
+image layer count low. Image cost: ~1.1 GB of ``/usr/lib/node_modules``
+on top of the ~430 MB code-server already adds.
+
+The CLIs ship without credentials — devs authenticate from the
+code-server terminal on first use.
 
 Configuration
 =============
