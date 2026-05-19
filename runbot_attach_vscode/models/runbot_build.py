@@ -29,7 +29,7 @@ class RunbotBuild(models.Model):
             for layer in self.params_id.dockerfile_id.layer_ids
         )
 
-    @api.depends("dest", "host")
+    @api.depends("dest", "host", "params_id.dockerfile_id")
     def _compute_vscode_url(self):
         get_param = self.env["ir.config_parameter"].sudo().get_param
         suffix = get_param("runbot_attach_vscode.url_suffix", default="vscode")
