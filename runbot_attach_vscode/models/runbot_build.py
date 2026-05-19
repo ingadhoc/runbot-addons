@@ -4,7 +4,6 @@ import subprocess
 import time
 
 from odoo import _, api, fields, models
-from odoo.addons.runbot.container import docker_state
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -41,6 +40,10 @@ class RunbotBuild(models.Model):
                 build.vscode_url = False
 
     def action_open_vscode(self):
+        """Backend button entry-point. We funnel through the HTTP controller
+        (rather than redirecting straight to vscode_url) because the
+        controller has to set the auth cookie on the parent domain — model
+        methods returning `ir.actions.act_url` can't attach cookies."""
         self.ensure_one()
         if not self.env.user._is_internal():
             raise UserError(_("Only internal users can open a VS Code session."))
@@ -48,15 +51,9 @@ class RunbotBuild(models.Model):
             raise UserError(
                 _("Build has no destination/host yet — wake it first."),
             )
-        container_name = self._get_docker_name()
-        if docker_state(container_name, self._path()) != "RUNNING":
-            raise UserError(
-                _("Build container is not running. Wake it up before opening VS Code."),
-            )
-        self._ensure_code_server_running(container_name)
         return {
             "type": "ir.actions.act_url",
-            "url": self.vscode_url,
+            "url": f"/runbot/vscode/{self.id}",
             "target": "new",
         }
 
