@@ -10,8 +10,18 @@
          placed BEFORE the generic <dest>(-suffix)?.<host> block so its
          more specific regex matches the vscode subdomain first.
 
-         WebSocket headers (Upgrade/Connection) are required by
-         code-server for the editor RPC. -->
+         AUTH: every request runs `auth_request /__vscode_auth_check`, a
+         sub-request to the Odoo controller `/runbot/vscode/auth_check`
+         that validates an HMAC cookie (issued by /runbot/vscode/<id>).
+         No valid cookie ⇒ 401 ⇒ we redirect back to /runbot/vscode/<id>
+         on the parent host, which re-issues (or bounces to /web/login
+         when there is no Odoo session). The browser sends the cookie to
+         this subdomain because we set Domain=.<parent>.
+
+         The Connection header is upgrade-or-close depending on whether
+         the request carried an Upgrade header — this lets the same block
+         proxy both code-server's plain HTTP assets and its WebSocket RPC.
+         Read/send timeouts at 7d cover long-lived editor sessions. -->
     <record id="runbot_nginx_config_vscode" model="ir.ui.view">
         <field name="name">runbot.nginx_config.vscode</field>
         <field name="type">qweb</field>
@@ -21,16 +31,35 @@
 server {
     listen 8080;
     server_name ~^<t t-out="re_escape(build.dest)"/>-vscode\.<t t-out="re_escape(build.host)"/>$;
+
+    location = /__vscode_auth_check {
+        internal;
+        proxy_pass http://127.0.0.1:8069/runbot/vscode/auth_check?build=<t t-out="build.id"/>;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header Host <t t-out="build.host"/>;
+        proxy_set_header X-Forwarded-Proto $real_scheme;
+    }
+
+    location @vscode_login_redirect {
+        return 302 $real_scheme://<t t-out="build.host"/>/runbot/vscode/<t t-out="build.id"/>;
+    }
+
     location / {
+        auth_request /__vscode_auth_check;
+        error_page 401 403 = @vscode_login_redirect;
+
         proxy_pass http://127.0.0.1:<t t-out="build.port + 2"/>;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Proto $real_scheme;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header X-Forwarded-For 127.0.0.42;
-        proxy_set_header X-Real-IP 127.0.0.42;
+        set $vscode_conn_upgrade upgrade;
+        if ($http_upgrade = "") { set $vscode_conn_upgrade close; }
+        proxy_set_header Connection $vscode_conn_upgrade;
+        proxy_read_timeout 7d;
+        proxy_send_timeout 7d;
     }
 }
             </xpath>
