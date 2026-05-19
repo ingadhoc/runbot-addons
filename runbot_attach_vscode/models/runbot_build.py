@@ -76,9 +76,10 @@ class RunbotBuild(models.Model):
                 [
                     "sh",
                     "-c",
-                    "pgrep -x code-server >/dev/null || "
+                    "pgrep -f code-server >/dev/null || "
                     f"exec code-server --bind-addr 0.0.0.0:{VSCODE_CONTAINER_PORT} "
-                    "--auth none /data/build",
+                    "--auth none /data/build "
+                    ">/tmp/code-server.log 2>&1",
                 ],
                 detach=True,
             )
