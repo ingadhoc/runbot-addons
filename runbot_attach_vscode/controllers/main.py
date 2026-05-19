@@ -46,4 +46,4 @@ class VsCodeController(http.Controller):
                 "http_routing.http_error",
                 {"status_code": _("VS Code"), "status_message": exc.args[0]},
             )
-        return request.redirect(build.vscode_url, code=302)
+        return request.redirect(build.vscode_url, code=302, local=False)
