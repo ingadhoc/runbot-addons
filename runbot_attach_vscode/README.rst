@@ -20,9 +20,11 @@ How to use
    ``runbot_attach_vscode.docker_layer_code_server``. Sequence ``200``
    works as a safe default (renders after the standard layers).
 #. Rebuild the image and wake a build. The *Open VS Code* entry in the
-   build's action menu opens
-   ``<scheme>://<dest>-vscode.<host>`` in a new tab, which nginx routes
-   to the code-server session listening on container port 8071.
+   build's action menu opens a new tab on ``/runbot/vscode/<build_id>``
+   in the runbot itself, which sets a short-lived auth cookie and
+   bounces to ``<scheme>://<dest>-vscode.<host>``; nginx then routes
+   the request to the code-server session listening on container
+   port 8071.
 
 How it works at run time
 ========================
@@ -38,22 +40,39 @@ mapping ``container 8071 → host build.port + 2`` (appended to
 ``exposed_ports``), because Docker does not let us add port mappings to
 a running container later. It does **not** start code-server.
 
-When the user clicks the button, ``action_open_vscode``:
+When the user clicks the button, control flows through the HTTP
+controller ``/runbot/vscode/<build_id>`` rather than redirecting
+straight to ``vscode_url`` — an ``ir.actions.act_url`` cannot attach
+cookies to the response, and we need the auth cookie set on the
+parent ``<host>`` domain before the browser reaches the subdomain.
+The route:
 
-#. Checks that the build container is in the ``RUNNING`` state.
+#. Requires an authenticated internal user (``base.group_user``).
+#. Checks the build container is in the ``RUNNING`` state.
 #. Runs ``docker exec`` inside the container (detached) to launch
    ``code-server`` listening on container port 8071. Repeated clicks
    are safe: a second attempt fails with ``EADDRINUSE`` and exits
    without affecting the already-running instance.
 #. Briefly polls the host port (up to 5s) so the browser does not race
    against the bind.
-#. Returns the ``ir.actions.act_url`` pointing at ``vscode_url``.
+#. Mints an HMAC-SHA256 token over ``database.secret`` with payload
+   ``build_id|user_id|exp`` (TTL 4h), sets it as a ``vscode_token``
+   cookie scoped to ``Domain=<host>`` (covers the subdomain per
+   RFC 6265), ``HttpOnly`` + ``Secure`` + ``SameSite=Lax``.
+#. Redirects (cross-domain) to ``vscode_url``.
 
 A QWeb inherit of ``runbot.nginx_config`` adds a per-build server block
-matching ``<dest>-vscode.<host>`` regex that proxies to
+matching ``<dest>-vscode.<host>`` that proxies to
 ``127.0.0.1:<build.port + 2>``, with the WebSocket headers code-server
-needs. The standard runbot nginx reload (triggered by ``_run_run_odoo``)
-picks the new block up.
+needs. The block guards every request with
+``auth_request /__vscode_auth_check`` → the public Odoo route
+``/runbot/vscode/auth_check?build=<id>`` validates the HMAC cookie
+(signature, expiry, build_id match). On 401/403 the request is
+bounced back to ``/runbot/vscode/<id>`` (which re-issues the cookie
+if the user is logged in, or kicks them to ``/web/login`` otherwise).
+code-server itself keeps running ``--auth none`` — authentication
+lives entirely at the nginx layer. The standard runbot nginx reload
+(triggered by ``_run_run_odoo``) picks the new block up.
 
 Both the run-step extension and the URL helper are no-ops when the
 build's Dockerfile does not attach the code-server reference layer
