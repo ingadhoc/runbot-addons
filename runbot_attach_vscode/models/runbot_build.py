@@ -35,12 +35,7 @@ class RunbotBuild(models.Model):
         suffix = get_param("runbot_attach_vscode.url_suffix", default="vscode")
         scheme = get_param("runbot_attach_vscode.scheme", default="https")
         for build in self:
-            if (
-                build.global_state in ("done", "running")
-                and build.dest
-                and build.host
-                and build._has_vscode_layer()
-            ):
+            if build.global_state in ("done", "running") and build.dest and build.host and build._has_vscode_layer():
                 build.vscode_url = f"{scheme}://{build.dest}-{suffix}.{build.host}"
             else:
                 build.vscode_url = False
