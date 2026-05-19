@@ -11,6 +11,7 @@
         "data/runbot_docker_layer.xml",
         "views/runbot_build_views.xml",
         "views/runbot_frontend_templates.xml",
+        "views/runbot_nginx.xml",
     ],
     "demo": [
         "demo/runbot_attach_vscode_demo.xml",
