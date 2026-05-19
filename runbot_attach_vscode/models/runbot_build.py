@@ -1,8 +1,8 @@
 import logging
 import socket
+import subprocess
 import time
 
-import docker
 from odoo import _, api, fields, models
 from odoo.addons.runbot.container import docker_state
 from odoo.exceptions import UserError
@@ -63,35 +63,40 @@ class RunbotBuild(models.Model):
     def _ensure_code_server_running(self, container_name):
         """Idempotently start code-server inside the running build container.
 
-        Uses `docker exec` with detach so the call returns immediately. The
-        shell guard (`pgrep ... || exec code-server ...`) makes a second
-        click a no-op if code-server is already up. After kicking off the
-        exec, we briefly poll the host port until code-server starts
-        accepting connections so the user's browser does not race against
-        the bind.
+        Uses the docker CLI directly via subprocess. We previously used
+        docker-py's exec_run(detach=True), but with that combination the
+        container's process did not survive the SDK call (likely because
+        AttachStdout/Stderr stay true and conflict with Detach=true).
+        Calling `docker exec -d` straight is the path we verified works
+        manually.
+
+        The shell guard (`pgrep -f code-server >/dev/null || exec
+        code-server ...`) makes a second click a no-op if code-server is
+        already up.
         """
+        inner_cmd = (
+            "pgrep -f code-server >/dev/null || "
+            f"exec code-server --bind-addr 0.0.0.0:{VSCODE_CONTAINER_PORT} "
+            "--auth none /data/build "
+            ">/tmp/code-server.log 2>&1"
+        )
         try:
-            container = docker.from_env().containers.get(container_name)
-            container.exec_run(
-                [
-                    "sh",
-                    "-c",
-                    "pgrep -f code-server >/dev/null || "
-                    f"exec code-server --bind-addr 0.0.0.0:{VSCODE_CONTAINER_PORT} "
-                    "--auth none /data/build "
-                    ">/tmp/code-server.log 2>&1",
-                ],
-                detach=True,
+            result = subprocess.run(
+                ["docker", "exec", "-d", container_name, "sh", "-c", inner_cmd],
+                capture_output=True,
+                timeout=10,
+                check=False,
             )
-        except docker.errors.NotFound:
-            raise UserError(
-                _("Build container '%s' not found.", container_name),
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            _logger.exception("docker exec failed for %s", container_name)
+            raise UserError(_("Could not start code-server in the build container."))
+        if result.returncode != 0:
+            _logger.error(
+                "docker exec to start code-server failed (rc=%s): %s",
+                result.returncode,
+                result.stderr.decode("utf-8", errors="replace"),
             )
-        except Exception:
-            _logger.exception("Failed to start code-server in %s", container_name)
-            raise UserError(
-                _("Could not start code-server in the build container. Check the runbot logs."),
-            )
+            raise UserError(_("Could not start code-server in the build container."))
         deadline = time.monotonic() + VSCODE_READY_TIMEOUT
         while time.monotonic() < deadline:
             try:
