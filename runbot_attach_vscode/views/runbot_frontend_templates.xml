@@ -10,7 +10,7 @@
                 <a class="dropdown-item"
                    groups="base.group_user"
                    t-if="bu.vscode_url"
-                   t-att-href="bu.vscode_url"
+                   t-attf-href="/runbot/vscode/{{bu.id}}"
                    target="_blank">
                     <i class="fa fa-code"/>
                     Open VS Code

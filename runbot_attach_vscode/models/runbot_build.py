@@ -1,5 +1,16 @@
+import logging
+import socket
+import subprocess
+import time
+
 from odoo import _, api, fields, models
+from odoo.addons.runbot.container import docker_state
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
+
+VSCODE_CONTAINER_PORT = 8071
+VSCODE_READY_TIMEOUT = 5.0
 
 
 class RunbotBuild(models.Model):
@@ -37,8 +48,57 @@ class RunbotBuild(models.Model):
             raise UserError(
                 _("Build has no destination/host yet — wake it first."),
             )
+        container_name = self._get_docker_name()
+        if docker_state(container_name, self._path()) != "RUNNING":
+            raise UserError(
+                _("Build container is not running. Wake it up before opening VS Code."),
+            )
+        self._ensure_code_server_running(container_name)
         return {
             "type": "ir.actions.act_url",
             "url": self.vscode_url,
             "target": "new",
         }
+
+    def _ensure_code_server_running(self, container_name):
+        """Start code-server inside the running build container.
+
+        Repeated calls are safe: if code-server is already up, a second
+        attempt fails with EADDRINUSE and exits without affecting the
+        running instance.
+        """
+        inner_cmd = (
+            f"code-server --bind-addr 0.0.0.0:{VSCODE_CONTAINER_PORT} "
+            "--auth none /data/build "
+            ">/tmp/code-server.log 2>&1"
+        )
+        try:
+            result = subprocess.run(
+                ["docker", "exec", "-d", container_name, "sh", "-c", inner_cmd],
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            _logger.exception("docker exec failed for %s", container_name)
+            raise UserError(_("Could not start code-server in the build container."))
+        if result.returncode != 0:
+            _logger.error(
+                "docker exec to start code-server failed (rc=%s): %s",
+                result.returncode,
+                result.stderr.decode("utf-8", errors="replace"),
+            )
+            raise UserError(_("Could not start code-server in the build container."))
+        deadline = time.monotonic() + VSCODE_READY_TIMEOUT
+        while time.monotonic() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", self.port + 2), timeout=0.3):
+                    return
+            except OSError:
+                time.sleep(0.3)
+        _logger.warning(
+            "code-server did not start listening on port %s within %ss for build %s",
+            self.port + 2,
+            VSCODE_READY_TIMEOUT,
+            self.id,
+        )
