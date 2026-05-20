@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="docker_layer_code_server" model="runbot.docker_layer">
+        <field name="name">code_server</field>
+        <field name="sequence">200</field>
+        <field name="layer_type">template</field>
+        <field name="content"># Layer: code-server v{CODE_SERVER_VERSION} (runbot_attach_vscode)
+USER root
+RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version {CODE_SERVER_VERSION} \
+    &amp;&amp; rm -rf /var/lib/apt/lists/*
+USER runbot</field>
+        <field name="values" eval="{'CODE_SERVER_VERSION': '4.96.4'}"/>
+    </record>
+
+</odoo>
