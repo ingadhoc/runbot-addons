@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="runbot_build_form_vscode" model="ir.ui.view">
+        <field name="name">runbot.build.form.vscode</field>
+        <field name="model">runbot.build</field>
+        <field name="inherit_id" ref="runbot.build_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button name="action_open_vscode"
+                            type="object"
+                            string="Open VS Code"
+                            groups="base.group_user"
+                            invisible="not vscode_url"
+                            class="oe_highlight"/>
+                </header>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
