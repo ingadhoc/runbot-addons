@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Bake-in: code-server (web editor) + AI CLIs (Claude Code, OpenCode,
+         OpenAI Codex, Google Gemini). Installed as a single RUN to keep
+         image-layer count down. Node 20 via NodeSource is required by the
+         three npm-distributed CLIs. -->
+    <record id="docker_layer_code_server" model="runbot.docker_layer">
+        <field name="name">code_server</field>
+        <field name="sequence">200</field>
+        <field name="layer_type">template</field>
+        <field name="content"># Layer: code-server v{CODE_SERVER_VERSION} + AI CLIs (runbot_attach_vscode)
+USER root
+RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version {CODE_SERVER_VERSION} \
+    &amp;&amp; curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    &amp;&amp; apt-get install -y --no-install-recommends nodejs \
+    &amp;&amp; npm install -g --silent \
+        @anthropic-ai/claude-code \
+        @openai/codex \
+        @google/gemini-cli \
+        opencode-ai \
+    &amp;&amp; rm -rf /var/lib/apt/lists/* /root/.npm /tmp/*
+USER runbot</field>
+        <field name="values" eval="{'CODE_SERVER_VERSION': '4.96.4'}"/>
+    </record>
+
+</odoo>

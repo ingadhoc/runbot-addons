@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="ir_config_parameter_url_suffix" model="ir.config_parameter">
+        <field name="key">runbot_attach_vscode.url_suffix</field>
+        <field name="value">vscode</field>
+    </record>
+
+    <record id="ir_config_parameter_scheme" model="ir.config_parameter">
+        <field name="key">runbot_attach_vscode.scheme</field>
+        <field name="value">https</field>
+    </record>
+
+</odoo>

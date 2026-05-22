@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="runbot_build_menu_vscode" model="ir.ui.view">
+        <field name="name">runbot.build_menu.vscode</field>
+        <field name="type">qweb</field>
+        <field name="inherit_id" ref="runbot.build_menu"/>
+        <field name="arch" type="xml">
+            <xpath expr="//a[i[hasclass('fa-refresh')]]" position="after">
+                <a class="dropdown-item"
+                   groups="base.group_user"
+                   t-if="bu.vscode_url"
+                   t-attf-href="/runbot/vscode/{{bu.id}}"
+                   target="_blank">
+                    <i class="fa fa-code"/>
+                    Open VS Code
+                </a>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
