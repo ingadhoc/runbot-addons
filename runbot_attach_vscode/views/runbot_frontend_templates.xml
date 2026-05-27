@@ -9,7 +9,7 @@
             <xpath expr="//a[i[hasclass('fa-refresh')]]" position="after">
                 <a class="dropdown-item"
                    groups="base.group_user"
-                   t-if="bu.vscode_url"
+                   t-if="bu.vscode_available"
                    t-attf-href="/runbot/vscode/{{bu.id}}"
                    target="_blank">
                     <i class="fa fa-code"/>

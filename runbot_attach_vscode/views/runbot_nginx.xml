@@ -1,40 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Per-build server block that routes <dest>-vscode.<host> to the
-         code-server we start alongside Odoo on container port 8071, mapped
-         to host port build.port + 2 (see runbot_build_config.py).
+    <!-- One server block for each running VS Code session. Every session has
+         its own container (see runbot.build.vscode.session) on its own port,
+         reached at <dest>-vscode-<user_key>.<host>.
 
-         Injected at the server_build_anchor inside the t-foreach over
-         builds, so each build gets its own block. Order matters: this is
-         placed BEFORE the generic <dest>(-suffix)?.<host> block so its
-         more specific regex matches the vscode subdomain first.
+         This is added inside the loop over running builds, so `build` is
+         available here; we loop again over the build's running sessions. It
+         comes BEFORE the generic <dest>.<host> block so the more specific
+         session address matches first.
 
-         AUTH: every request runs `auth_request /__vscode_auth_check`, a
-         sub-request to the Odoo controller `/runbot/vscode/auth_check`
-         that validates an HMAC cookie (issued by /runbot/vscode/<id>).
-         No valid cookie ⇒ 401 ⇒ we redirect back to /runbot/vscode/<id>
-         on the parent host, which re-issues (or bounces to /web/login
-         when there is no Odoo session). The browser sends the cookie to
-         this subdomain because we set Domain=.<parent>.
+         ACCESS CHECK: before every request, nginx asks
+         /runbot/vscode/auth_check?build=<id>&user=<user_key>. The controller
+         checks the token is valid, not expired, for this build, and owned by
+         this user — so user A's token cannot open user B's container. No valid
+         token means the user is sent to /runbot/vscode/<id>, which gives them a
+         fresh one (or sends them to the login page).
 
-         The Connection header is upgrade-or-close depending on whether
-         the request carried an Upgrade header — this lets the same block
-         proxy both code-server's plain HTTP assets and its WebSocket RPC.
-         Read/send timeouts at 7d cover long-lived editor sessions. -->
+         The Connection header switches between "upgrade" and "close" depending
+         on the request, so the same block serves both code-server's web pages
+         and its live connection. The 7-day timeouts keep long editor sessions
+         open. -->
     <record id="runbot_nginx_config_vscode" model="ir.ui.view">
         <field name="name">runbot.nginx_config.vscode</field>
         <field name="type">qweb</field>
         <field name="inherit_id" ref="runbot.nginx_config"/>
         <field name="arch" type="xml">
             <xpath expr="//t[@id='server_build_anchor']" position="inside">
+                <t t-foreach="build.vscode_session_ids.filtered(lambda s: s.state == 'running' and s.port)" t-as="session">
 server {
     listen 8080;
-    server_name ~^<t t-out="re_escape(build.dest)"/>-vscode\.<t t-out="re_escape(build.host)"/>$;
+    server_name ~^<t t-out="re_escape(build.dest)"/>-vscode-<t t-out="re_escape(session.user_key)"/>\.<t t-out="re_escape(build.host)"/>$;
 
     location = /__vscode_auth_check {
         internal;
-        proxy_pass http://127.0.0.1:8069/runbot/vscode/auth_check?build=<t t-out="build.id"/>;
+        proxy_pass http://127.0.0.1:8069/runbot/vscode/auth_check?build=<t t-out="build.id"/>&amp;user=<t t-out="session.user_key"/>;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header Host <t t-out="build.host"/>;
@@ -49,7 +49,7 @@ server {
         auth_request /__vscode_auth_check;
         error_page 401 403 = @vscode_login_redirect;
 
-        proxy_pass http://127.0.0.1:<t t-out="build.port + 2"/>;
+        proxy_pass http://127.0.0.1:<t t-out="session.port"/>;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Host $host;
@@ -62,6 +62,7 @@ server {
         proxy_send_timeout 7d;
     }
 }
+                </t>
             </xpath>
         </field>
     </record>

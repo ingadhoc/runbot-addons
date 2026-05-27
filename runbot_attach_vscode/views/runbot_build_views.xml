@@ -6,15 +6,19 @@
         <field name="model">runbot.build</field>
         <field name="inherit_id" ref="runbot.build_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//sheet" position="before">
-                <header>
-                    <button name="action_open_vscode"
-                            type="object"
-                            string="Open VS Code"
-                            groups="base.group_user"
-                            invisible="not vscode_url"
-                            class="oe_highlight"/>
-                </header>
+            <xpath expr="//sheet" position="inside">
+                <group string="VS Code sessions"
+                       invisible="not vscode_session_ids">
+                    <field name="vscode_session_ids" nolabel="1" readonly="1">
+                        <list>
+                            <field name="user_id"/>
+                            <field name="state"/>
+                            <field name="port"/>
+                            <field name="container_name"/>
+                            <field name="last_seen"/>
+                        </list>
+                    </field>
+                </group>
             </xpath>
         </field>
     </record>
