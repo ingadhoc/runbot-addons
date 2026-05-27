@@ -5,7 +5,6 @@ import logging
 import time
 
 from odoo import _, http
-from odoo.addons.runbot.container import docker_state
 from odoo.exceptions import UserError
 from odoo.http import Response, request
 
@@ -16,44 +15,59 @@ TOKEN_TTL_SECONDS = 4 * 3600
 
 
 class VsCodeController(http.Controller):
-    """code-server entry-point + auth_check used by the per-build nginx block.
+    """Opens VS Code for a user and checks their access token.
 
-    The session model: when an internal user clicks "Open VS Code", the
-    `/runbot/vscode/<id>` route issues an HMAC-signed cookie scoped to
-    the parent domain (so the browser sends it on the <dest>-vscode.<host>
-    subdomain). The runbot internal nginx block runs `auth_request` on
-    every request to that subdomain — the sub-request hits
-    `/runbot/vscode/auth_check?build=<id>` and validates the cookie. No
-    valid cookie ⇒ 401 ⇒ nginx redirects back to /runbot/vscode/<id>,
-    which re-issues (or bounces to /web/login if no session).
+    When an internal user clicks "Open VS Code", `/runbot/vscode/<id>` finds
+    or creates that user's container, gives the browser a signed token, and
+    sends them to their personal address `<dest>-vscode-<user_key>.<host>`.
+    On every request to that address, nginx calls `auth_check` to make sure
+    the token is valid, not expired, for this build, and belongs to the user
+    who owns the address — so one user's token can never open another user's
+    container.
     """
 
     @staticmethod
     def _vscode_secret():
         param = request.env["ir.config_parameter"].sudo().get_param("database.secret")
         if not param:
-            # database.secret is initialized lazily; fall back to the cookie
-            # key so verify-after-restart still works deterministically.
+            # database.secret may not be set yet; fall back to database.uuid so
+            # we sign and check tokens with the same key even after a restart.
             param = request.env["ir.config_parameter"].sudo().get_param("database.uuid", "")
         return (param or "").encode()
+
+    @staticmethod
+    def _b64(raw):
+        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    @staticmethod
+    def _unb64(text):
+        return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
     @classmethod
     def _make_token(cls, build_id, user_id, exp):
         payload = f"{int(build_id)}|{int(user_id)}|{int(exp)}".encode()
         sig = hmac.new(cls._vscode_secret(), payload, hashlib.sha256).digest()
-        return base64.urlsafe_b64encode(payload + b"." + sig).decode().rstrip("=")
+        # Encode the two parts separately and join with a dot. The dot is safe
+        # as a separator because urlsafe base64 never produces one, so the
+        # signature's raw bytes can't be mistaken for it.
+        return f"{cls._b64(payload)}.{cls._b64(sig)}"
 
     @classmethod
-    def _verify_token(cls, token, build_id):
+    def _verify_token(cls, token, build_id, user_id=None):
+        """Check the token's signature and expiry, and that it is for this
+        build. When `user_id` is given, also check the token belongs to that
+        user."""
         try:
-            padded = token + "=" * (-len(token) % 4)
-            raw = base64.urlsafe_b64decode(padded.encode())
-            payload, sig = raw.rsplit(b".", 1)
+            body, mac = token.split(".", 1)
+            payload = cls._unb64(body)
+            sig = cls._unb64(mac)
             expected = hmac.new(cls._vscode_secret(), payload, hashlib.sha256).digest()
             if not hmac.compare_digest(sig, expected):
                 return False
-            tok_build, _tok_user, exp = payload.decode().split("|")
+            tok_build, tok_user, exp = payload.decode().split("|")
             if int(tok_build) != int(build_id):
+                return False
+            if user_id is not None and int(tok_user) != int(user_id):
                 return False
             if int(exp) < int(time.time()):
                 return False
@@ -69,19 +83,15 @@ class VsCodeController(http.Controller):
         sitemap=False,
     )
     def open_vscode(self, build_id):
-        """Issue the auth cookie + start code-server lazily + redirect.
-
-        Both the backend "Open VS Code" button and the frontend dropdown
-        funnel through this route so the cookie can be set on the parent
-        domain (model methods can't attach cookies to act_url responses).
-        """
+        """Find or create the user's session, start its container, set the
+        access token on Odoo's domain, and send the browser to the user's
+        personal VS Code address."""
         if not request.env.user._is_internal():
             return request.not_found()
         build = request.env["runbot.build"].browse(build_id).sudo()
-        if not build.exists() or not build.vscode_url:
+        if not build.exists() or not build.vscode_available:
             return request.not_found()
-        container_name = build._get_docker_name()
-        if docker_state(container_name, build._path()) != "RUNNING":
+        if build.local_state != "running":
             return request.render(
                 "http_routing.http_error",
                 {
@@ -90,7 +100,7 @@ class VsCodeController(http.Controller):
                 },
             )
         try:
-            build._ensure_code_server_running(container_name)
+            session = build._ensure_user_vscode_container(request.env.user)
         except UserError as exc:
             return request.render(
                 "http_routing.http_error",
@@ -98,11 +108,10 @@ class VsCodeController(http.Controller):
             )
         exp = int(time.time()) + TOKEN_TTL_SECONDS
         token = self._make_token(build.id, request.env.user.id, exp)
-        response = request.redirect(build.vscode_url, code=302, local=False)
-        # Setting Domain= to the build's host scopes the cookie to that
-        # host *and* all subdomains under it (RFC 6265), which is exactly
-        # what we need: Odoo runs on <host>, code-server is reached on
-        # <dest>-vscode.<host>, and the browser sends the cookie to both.
+        response = request.redirect(build._vscode_session_url(session), code=302, local=False)
+        # This token proves who the user is. We hand it out here (on Odoo's
+        # host) but nginx checks it on the VS Code subdomain, so we tie it to
+        # build.host to make the browser send it to both.
         response.set_cookie(
             TOKEN_COOKIE,
             token,
@@ -122,15 +131,31 @@ class VsCodeController(http.Controller):
         csrf=False,
         sitemap=False,
     )
-    def auth_check(self, build=None):
-        """Sub-request target for nginx `auth_request`. Returns 200 only when
-        the request carries a valid, non-expired token cookie for the given
-        build. nginx forwards the browser's Cookie header automatically."""
-        if not build:
+    def auth_check(self, build=None, user=None):
+        """Called by nginx before every request to a VS Code address. Returns
+        200 only when the token is valid for this build and belongs to the
+        user who owns the address (`user` is the `<id>-<slug>` key, where
+        `<slug>` comes from the login's local part). Also marks the session
+        as recently used so the cleanup job leaves it alone."""
+        if not build or not user:
             return Response(status=401)
         token = request.httprequest.cookies.get(TOKEN_COOKIE, "")
         if not token:
             return Response(status=401)
-        if self._verify_token(token, build):
-            return Response(status=200)
-        return Response(status=401)
+        try:
+            expected_user_id = int(str(user).split("-", 1)[0])
+        except (ValueError, TypeError):
+            return Response(status=401)
+        if not self._verify_token(token, build, expected_user_id):
+            return Response(status=401)
+        session = (
+            request.env["runbot.build.vscode.session"]
+            .sudo()
+            .search(
+                [("build_id", "=", int(build)), ("user_id", "=", expected_user_id)],
+                limit=1,
+            )
+        )
+        if session:
+            session.touch()
+        return Response(status=200)

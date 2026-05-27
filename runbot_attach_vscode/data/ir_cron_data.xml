@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Runs every few minutes. Closes VS Code sessions that nobody has used
+         for a while: stops their container (even if the build is still up)
+         and deletes the leftover records. -->
+    <record id="ir_cron_close_unused_sessions" model="ir.cron">
+        <field name="name">Runbot: close unused VS Code sessions</field>
+        <field name="model_id" ref="model_runbot_build_vscode_session"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_close_unused_sessions()</field>
+        <field name="interval_number">10</field>
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="True"/>
+    </record>
+
+</odoo>

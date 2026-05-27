@@ -1,0 +1,262 @@
+import logging
+import os
+import re
+import subprocess
+
+from odoo import _, api, fields, models
+from odoo.addons.runbot.container import sanitize_container_name
+from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
+
+# Port code-server listens on inside each container. The matching port on the
+# host is different for every session (see _find_free_port).
+VSCODE_CONTAINER_PORT = 8071
+# How long a session may sit unused before we close it. Same length as the
+# login token's lifetime, so the token and the container expire together.
+SESSION_TTL_SECONDS = 4 * 3600
+DOCKER_TIMEOUT = 20
+# Home folder inside the container, where each user's login folders are mounted.
+# Fixed by the build image, so it is a constant, not a setting.
+CONTAINER_HOME = "/home/runbot"
+
+
+class RunbotBuildVscodeSession(models.Model):
+    """One code-server container per user, on a single build.
+
+    Each user gets their own container, so several people can open the same
+    build at the same time without seeing each other's logins. The container
+    can read the build's source code and reach its database, but only the
+    owner's saved logins (Claude, codex, gemini) are mounted into it.
+    """
+
+    _name = "runbot.build.vscode.session"
+    _description = "Runbot VS Code per-user session"
+
+    build_id = fields.Many2one(
+        "runbot.build",
+        required=True,
+        index=True,
+        ondelete="cascade",
+    )
+    user_id = fields.Many2one(
+        "res.users",
+        required=True,
+        index=True,
+        ondelete="cascade",
+    )
+    user_key = fields.Char(compute="_compute_user_key", store=True)
+    container_name = fields.Char(compute="_compute_container_name", store=True)
+    port = fields.Integer()
+    state = fields.Selection(
+        [("starting", "Starting"), ("running", "Running"), ("dead", "Dead")],
+        default="starting",
+        required=True,
+    )
+    last_seen = fields.Datetime(default=fields.Datetime.now)
+
+    _sql_constraints = [
+        (
+            "build_user_uniq",
+            "unique(build_id, user_id)",
+            "A user can only have one VS Code session per build.",
+        ),
+    ]
+
+    @api.depends("user_id")
+    def _compute_user_key(self):
+        for session in self:
+            user = session.user_id
+            if not user:
+                session.user_key = False
+                continue
+            # Keep only the part before the `@` so email logins stay short.
+            local_part = (user.login or "").split("@")[0]
+            login_slug = re.sub(r"[^a-z0-9]+", "-", local_part.lower()).strip("-")
+            session.user_key = f"{user.id}-{login_slug}" if login_slug else str(user.id)
+
+    @api.depends("build_id.dest", "user_key")
+    def _compute_container_name(self):
+        for session in self:
+            if session.build_id.dest and session.user_key:
+                session.container_name = sanitize_container_name(
+                    f"{session.build_id.dest}_vscode_{session.user_key}",
+                )
+            else:
+                session.container_name = False
+
+    # --- host path helpers -------------------------------------------------
+
+    def _auth_dir(self):
+        """Host folder with this user's saved logins (Claude, codex, gemini)."""
+        self.ensure_one()
+        root = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(
+                "runbot_attach_vscode.auth_root",
+                default=os.path.expanduser("~/.adhoc-runbot-auth"),
+            )
+        )
+        return os.path.join(root, self.user_key)
+
+    # --- port pool ---------------------------------------------------------
+
+    @api.model
+    def _find_free_port(self):
+        """Pick a free host port for a session.
+
+        Builds already use a low range of ports, so sessions take ports from
+        their own high range to avoid clashing with them.
+        """
+        icp = self.env["ir.config_parameter"].sudo()
+        port = int(icp.get_param("runbot_attach_vscode.session_starting_port", default=20000))
+        used = set(
+            self.search([("state", "!=", "dead"), ("port", "!=", False)]).mapped("port"),
+        )
+        while port in used:
+            port += 1
+        return port
+
+    # --- container lifecycle ----------------------------------------------
+
+    def _docker_container_running(self):
+        self.ensure_one()
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "-f", "{{.State.Running}}", self.container_name],
+                capture_output=True,
+                timeout=DOCKER_TIMEOUT,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+        return result.returncode == 0 and result.stdout.strip() == b"true"
+
+    def _ensure_container(self):
+        """Start this user's container if it isn't already running.
+
+        Calling it again while the container is up does nothing. The container
+        only runs code-server (not the build's own Odoo), so the code being
+        reviewed never runs next to the user's logins.
+        """
+        self.ensure_one()
+        build = self.build_id
+        if self._docker_container_running():
+            self.write({"state": "running", "last_seen": fields.Datetime.now()})
+            return
+        if not self.port:
+            self.port = self._find_free_port()
+
+        auth_dir = self._auth_dir()
+        # We create these folders as the runbot user, so they end up owned by
+        # the same user the container runs as.
+        for sub in (".claude", ".codex", ".gemini"):
+            os.makedirs(os.path.join(auth_dir, sub), exist_ok=True)
+
+        image_tag = build.params_id.dockerfile_id.image_tag
+        cmd = [
+            "docker",
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            self.container_name,
+            "-p",
+            f"127.0.0.1:{self.port}:{VSCODE_CONTAINER_PORT}",
+            "-v",
+            f"{build._path()}:/data/build:ro",
+            "-v",
+            "/var/run/postgresql:/var/run/postgresql:rw",
+            "-v",
+            f"{os.path.join(auth_dir, '.claude')}:{CONTAINER_HOME}/.claude:rw",
+            "-v",
+            f"{os.path.join(auth_dir, '.codex')}:{CONTAINER_HOME}/.codex:rw",
+            "-v",
+            f"{os.path.join(auth_dir, '.gemini')}:{CONTAINER_HOME}/.gemini:rw",
+            image_tag,
+            "code-server",
+            "--bind-addr",
+            f"0.0.0.0:{VSCODE_CONTAINER_PORT}",
+            "--auth",
+            "none",
+            "/data/build",
+        ]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=DOCKER_TIMEOUT,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            _logger.exception("docker run failed for session %s", self.id)
+            raise UserError(_("Could not start the VS Code container."))
+        if result.returncode != 0:
+            _logger.error(
+                "docker run for vscode session %s failed (rc=%s): %s",
+                self.id,
+                result.returncode,
+                result.stderr.decode("utf-8", errors="replace"),
+            )
+            raise UserError(_("Could not start the VS Code container."))
+        self.write({"state": "running", "last_seen": fields.Datetime.now()})
+        build._log(
+            "vscode",
+            "VS Code session opened by **%s**" % self.user_id.name,
+            log_type="markdown",
+        )
+
+    def _stop_container(self):
+        for session in self:
+            if not session.container_name:
+                session.state = "dead"
+                continue
+            try:
+                subprocess.run(
+                    ["docker", "stop", session.container_name],
+                    capture_output=True,
+                    timeout=DOCKER_TIMEOUT,
+                    check=False,
+                )
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                _logger.warning("docker stop failed for %s", session.container_name)
+            if session._docker_container_running():
+                _logger.error(
+                    "VS Code container %s did not stop; the cleanup job will try again later",
+                    session.container_name,
+                )
+                continue
+            if session.state != "dead":
+                session.build_id._log(
+                    "vscode",
+                    "VS Code session closed for **%s**" % session.user_id.name,
+                    log_type="markdown",
+                )
+            session.state = "dead"
+
+    def touch(self):
+        """Mark the session as recently used (called on each editor request).
+
+        We write at most once a minute: code-server makes lots of requests and
+        the cleanup job only looks every few hours, so writing on every request
+        would be wasted work."""
+        threshold = fields.Datetime.subtract(fields.Datetime.now(), seconds=60)
+        to_refresh = self.filtered(lambda s: not s.last_seen or s.last_seen < threshold)
+        if to_refresh:
+            to_refresh.sudo().write({"last_seen": fields.Datetime.now()})
+
+    @api.model
+    def _cron_close_unused_sessions(self):
+        """Close sessions nobody has used for a while.
+
+        A session counts as unused once nobody has touched it for 4 hours
+        (SESSION_TTL_SECONDS): we stop its container, then remove the rows we
+        already closed so the table doesn't grow forever."""
+        deadline = fields.Datetime.subtract(
+            fields.Datetime.now(),
+            seconds=SESSION_TTL_SECONDS,
+        )
+        unused = self.search([("state", "!=", "dead"), ("last_seen", "<", deadline)])
+        unused._stop_container()
+        self.search([("state", "=", "dead")]).unlink()

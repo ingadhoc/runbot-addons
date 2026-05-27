@@ -13,11 +13,40 @@
         <field name="sequence">200</field>
     </record>
 
-    <!-- Force vscode_url recompute on builds created before this file loaded
-         (vscode_url stores once and only depends on dest + host, so the new
-         reference layer above does not propagate on its own). -->
-    <function model="runbot.build" name="_compute_vscode_url">
+    <!-- Recompute vscode_available on builds created before this file loaded
+         (it is stored and depends on dest + host, so the new reference layer
+         above does not propagate on its own). -->
+    <function model="runbot.build" name="_compute_vscode_available">
         <value model="runbot.build" eval="obj().search([]).ids"/>
     </function>
+
+    <!-- A synthetic running build with two sessions on it, so the "VS Code
+         sessions" group on the build form shows real rows even in a fresh DB
+         that has no scanned builds yet. -->
+    <record id="demo_version" model="runbot.version">
+        <field name="name">18.0</field>
+    </record>
+    <record id="demo_build_params" model="runbot.build.params">
+        <field name="version_id" ref="demo_version"/>
+        <field name="project_id" ref="runbot.main_project"/>
+        <field name="dockerfile_id" ref="runbot.docker_default"/>
+    </record>
+    <record id="demo_build" model="runbot.build">
+        <field name="params_id" ref="demo_build_params"/>
+        <field name="host">demo.runbot.local</field>
+        <field name="local_state">running</field>
+    </record>
+    <record id="demo_session_admin" model="runbot.build.vscode.session">
+        <field name="build_id" ref="demo_build"/>
+        <field name="user_id" ref="base.user_admin"/>
+        <field name="state">running</field>
+        <field name="port">20001</field>
+    </record>
+    <record id="demo_session_demo" model="runbot.build.vscode.session">
+        <field name="build_id" ref="demo_build"/>
+        <field name="user_id" ref="base.user_demo"/>
+        <field name="state">starting</field>
+        <field name="port">20002</field>
+    </record>
 
 </odoo>
