@@ -26,6 +26,14 @@ CONTAINER_HOME = "/home/runbot"
 READY_TIMEOUT = 30.0
 # Path code-server answers 200 on once it is ready to serve.
 READY_PROBE_PATH = "/healthz"
+# MCP servers pre-seeded into ~/.claude.json so users only need to pick
+# one in /mcp and authenticate.
+PRESEED_MCP_SERVERS = {
+    "tuqui-adhoc": {
+        "type": "http",
+        "url": "https://tuqui.com/mcp/adhoc",
+    },
+}
 
 
 class RunbotBuildVscodeSession(models.Model):
@@ -186,6 +194,22 @@ class RunbotBuildVscodeSession(models.Model):
         # the same user the container runs as.
         for sub in (".claude", ".codex", ".gemini"):
             os.makedirs(os.path.join(auth_dir, sub), exist_ok=True)
+        # Claude Code keeps the logged-in account in ~/.claude.json (next to the
+        # .claude folder, not inside it). Pre-seed the MCP servers here so the
+        # user only needs to pick one in /mcp and authenticate.
+        claude_json = os.path.join(auth_dir, ".claude.json")
+        try:
+            with open(claude_json) as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                data = {}
+        except (OSError, ValueError):
+            data = {}
+        servers = data.setdefault("mcpServers", {})
+        for name, cfg in PRESEED_MCP_SERVERS.items():
+            servers.setdefault(name, cfg)
+        with open(claude_json, "w") as f:
+            json.dump(data, f, indent=2)
 
         image_tag = build.params_id.dockerfile_id.image_tag
         cmd = [
@@ -203,6 +227,8 @@ class RunbotBuildVscodeSession(models.Model):
             "/var/run/postgresql:/var/run/postgresql:rw",
             "-v",
             f"{os.path.join(auth_dir, '.claude')}:{CONTAINER_HOME}/.claude:rw",
+            "-v",
+            f"{claude_json}:{CONTAINER_HOME}/.claude.json:rw",
             "-v",
             f"{os.path.join(auth_dir, '.codex')}:{CONTAINER_HOME}/.codex:rw",
             "-v",
