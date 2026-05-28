@@ -1,4 +1,5 @@
 import http.client
+import json
 import logging
 import os
 import re
@@ -139,6 +140,32 @@ class RunbotBuildVscodeSession(models.Model):
             return False
         return result.returncode == 0 and result.stdout.strip() == b"true"
 
+    def _build_source_mounts(self):
+        """Read the build container's read-only mounts under /data/build/ so we
+        can mirror them. That is where runbot exposes the repo sources, and
+        without these the side container shows an empty workspace."""
+        self.ensure_one()
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "-f", "{{json .Mounts}}", self.build_id._get_docker_name()],
+                capture_output=True,
+                timeout=DOCKER_TIMEOUT,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return []
+        if result.returncode != 0:
+            return []
+        try:
+            mounts = json.loads(result.stdout or b"[]")
+        except json.JSONDecodeError:
+            return []
+        return [
+            (m["Source"], m["Destination"])
+            for m in mounts
+            if m.get("Mode") == "ro" and m.get("Destination", "").startswith("/data/build/")
+        ]
+
     def _ensure_container(self):
         """Start this user's container if it isn't already running.
 
@@ -180,6 +207,12 @@ class RunbotBuildVscodeSession(models.Model):
             f"{os.path.join(auth_dir, '.codex')}:{CONTAINER_HOME}/.codex:rw",
             "-v",
             f"{os.path.join(auth_dir, '.gemini')}:{CONTAINER_HOME}/.gemini:rw",
+        ]
+        # Mirror the repo sources runbot mounts on the build's own container,
+        # so the side container sees the same /data/build/<repo>/ layout.
+        for src, dst in self._build_source_mounts():
+            cmd += ["-v", f"{src}:{dst}:ro"]
+        cmd += [
             image_tag,
             "code-server",
             "--bind-addr",
