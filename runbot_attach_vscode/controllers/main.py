@@ -106,6 +106,10 @@ class VsCodeController(http.Controller):
                 "http_routing.http_error",
                 {"status_code": _("VS Code"), "status_message": exc.args[0]},
             )
+        # Reload nginx now so the new server block is live before the 302
+        # fires; otherwise the request races the scheduler cycle and falls
+        # through to the build's Odoo.
+        request.env["runbot.runbot"].sudo()._reload_nginx()
         exp = int(time.time()) + TOKEN_TTL_SECONDS
         token = self._make_token(build.id, request.env.user.id, exp)
         response = request.redirect(build._vscode_session_url(session), code=302, local=False)

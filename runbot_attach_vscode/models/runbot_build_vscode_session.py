@@ -1,7 +1,9 @@
+import http.client
 import logging
 import os
 import re
 import subprocess
+import time
 
 from odoo import _, api, fields, models
 from odoo.addons.runbot.container import sanitize_container_name
@@ -19,6 +21,10 @@ DOCKER_TIMEOUT = 20
 # Home folder inside the container, where each user's login folders are mounted.
 # Fixed by the build image, so it is a constant, not a setting.
 CONTAINER_HOME = "/home/runbot"
+# Seconds to wait for code-server to start serving HTTP after docker run.
+READY_TIMEOUT = 30.0
+# Path code-server answers 200 on once it is ready to serve.
+READY_PROBE_PATH = "/healthz"
 
 
 class RunbotBuildVscodeSession(models.Model):
@@ -200,6 +206,33 @@ class RunbotBuildVscodeSession(models.Model):
                 result.stderr.decode("utf-8", errors="replace"),
             )
             raise UserError(_("Could not start the VS Code container."))
+        # Send a real HTTP request, not just check that the port is open:
+        # docker opens the port the moment the container starts, but
+        # code-server needs another moment to actually serve. Without this
+        # wait, the user's first click would land on an error page.
+        deadline = time.monotonic() + READY_TIMEOUT
+        while time.monotonic() < deadline:
+            try:
+                conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=0.5)
+                try:
+                    conn.request("GET", READY_PROBE_PATH)
+                    resp = conn.getresponse()
+                    resp.read()
+                finally:
+                    conn.close()
+                if resp.status < 500:
+                    break
+            except (OSError, http.client.HTTPException):
+                pass
+            time.sleep(0.3)
+        else:
+            _logger.error(
+                "code-server on port %s did not become ready within %ss for session %s",
+                self.port,
+                READY_TIMEOUT,
+                self.id,
+            )
+            raise UserError(_("VS Code did not start in time; try again."))
         self.write({"state": "running", "last_seen": fields.Datetime.now()})
         build._log(
             "vscode",
