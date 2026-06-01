@@ -4,7 +4,7 @@
     "author": "ADHOC SA",
     "website": "https://www.adhoc.com.ar",
     "category": "Website",
-    "version": "18.0.2.0.0",
+    "version": "18.0.2.1.0",
     "depends": ["runbot"],
     "data": [
         "security/ir.model.access.csv",
