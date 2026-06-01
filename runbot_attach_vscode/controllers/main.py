@@ -10,7 +10,6 @@ from odoo.http import Response, request
 
 _logger = logging.getLogger(__name__)
 
-TOKEN_COOKIE = "vscode_token"
 TOKEN_TTL_SECONDS = 4 * 3600
 
 
@@ -34,6 +33,13 @@ class VsCodeController(http.Controller):
             # we sign and check tokens with the same key even after a restart.
             param = request.env["ir.config_parameter"].sudo().get_param("database.uuid", "")
         return (param or "").encode()
+
+    @staticmethod
+    def _cookie_name(build_id):
+        """Cookie holding the access token for one build. One per build so a
+        user opening VS Code on a second build does not overwrite the first
+        build's token."""
+        return f"vscode_token_{build_id}"
 
     @staticmethod
     def _b64(raw):
@@ -117,7 +123,7 @@ class VsCodeController(http.Controller):
         # host) but nginx checks it on the VS Code subdomain, so we tie it to
         # build.host to make the browser send it to both.
         response.set_cookie(
-            TOKEN_COOKIE,
+            self._cookie_name(build.id),
             token,
             max_age=TOKEN_TTL_SECONDS,
             domain=build.host,
@@ -143,7 +149,7 @@ class VsCodeController(http.Controller):
         as recently used so the cleanup job leaves it alone."""
         if not build or not user:
             return Response(status=401)
-        token = request.httprequest.cookies.get(TOKEN_COOKIE, "")
+        token = request.httprequest.cookies.get(self._cookie_name(build), "")
         if not token:
             return Response(status=401)
         try:
