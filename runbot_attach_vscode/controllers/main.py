@@ -115,6 +115,9 @@ class VsCodeController(http.Controller):
         # Reload nginx now so the new server block is live before the 302
         # fires; otherwise the request races the scheduler cycle and falls
         # through to the build's Odoo.
+        # Assumes a single-host runbot: _reload_nginx only renders blocks for
+        # builds on the host serving this request, so on a multi-host setup the
+        # block would land on the wrong host. Revisit if runbot becomes multi-host.
         request.env["runbot.runbot"].sudo()._reload_nginx()
         exp = int(time.time()) + TOKEN_TTL_SECONDS
         token = self._make_token(build.id, request.env.user.id, exp)
