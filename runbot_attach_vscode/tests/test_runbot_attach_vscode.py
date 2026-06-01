@@ -1,3 +1,4 @@
+import socket
 from unittest.mock import patch
 
 from odoo.tests import TransactionCase, tagged
@@ -121,18 +122,12 @@ class TestRunbotAttachVscode(TransactionCase):
         self.assertIn("_vscode_", session.container_name)
         self.assertIn(session.user_key, session.container_name)
 
-    def test_find_free_port_avoids_used(self):
-        build = self._persisted_build()
-        s_a = self.env["runbot.build.vscode.session"].create(
-            {"build_id": build.id, "user_id": self.user_a.id, "state": "running"},
-        )
-        s_a.port = self.env["runbot.build.vscode.session"]._find_free_port()
-        s_b = self.env["runbot.build.vscode.session"].create(
-            {"build_id": build.id, "user_id": self.user_b.id, "state": "running"},
-        )
-        s_b.port = self.env["runbot.build.vscode.session"]._find_free_port()
-        self.assertNotEqual(s_a.port, s_b.port)
-        self.assertGreaterEqual(s_a.port, 20000)
+    def test_find_free_port_is_bindable(self):
+        port = self.env["runbot.build.vscode.session"]._find_free_port()
+        self.assertGreater(port, 1024)
+        # The OS handed it back as free, so we must be able to bind it now.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", port))
 
     def test_ensure_user_vscode_container_find_or_create(self):
         build = self._persisted_build()

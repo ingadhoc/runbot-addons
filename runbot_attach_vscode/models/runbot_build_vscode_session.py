@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import socket
 import subprocess
 import time
 
@@ -13,7 +14,7 @@ from odoo.exceptions import UserError
 _logger = logging.getLogger(__name__)
 
 # Port code-server listens on inside each container. The matching port on the
-# host is different for every session (see _find_free_port).
+# host is a free one the OS hands us per session (see _find_free_port).
 VSCODE_CONTAINER_PORT = 8071
 # How long a session may sit unused before we close it. Same length as the
 # login token's lifetime, so the token and the container expire together.
@@ -119,19 +120,10 @@ class RunbotBuildVscodeSession(models.Model):
 
     @api.model
     def _find_free_port(self):
-        """Pick a free host port for a session.
-
-        Builds already use a low range of ports, so sessions take ports from
-        their own high range to avoid clashing with them.
-        """
-        icp = self.env["ir.config_parameter"].sudo()
-        port = int(icp.get_param("runbot_attach_vscode.session_starting_port", default=20000))
-        used = set(
-            self.search([("state", "!=", "dead"), ("port", "!=", False)]).mapped("port"),
-        )
-        while port in used:
-            port += 1
-        return port
+        """Return a free host port on loopback, picked by the OS (bind to 0)."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            return sock.getsockname()[1]
 
     # --- container lifecycle ----------------------------------------------
 
