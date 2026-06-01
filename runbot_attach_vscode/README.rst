@@ -136,10 +136,6 @@ System parameters:
 ``runbot_attach_vscode.scheme``
     URL scheme. Default: ``https``.
 
-``runbot_attach_vscode.session_starting_port``
-    Base of the per-session host-port pool (ports increment by 1,
-    skipping active sessions). Default: ``20000``.
-
 ``runbot_attach_vscode.auth_root``
     Host root for per-user login folders. Default:
     ``~/.adhoc-runbot-auth`` of the runbot user.
