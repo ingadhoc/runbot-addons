@@ -146,6 +146,15 @@ Dockerfile, set the ``values`` JSON of the consuming
 ``reference_layer`` — see ``runbot.docker_layer._render_template`` for
 the merge order (base + source + caller).
 
+Limitations
+===========
+
+* **Single-host runbot only.** Opening a session reloads nginx on the host
+  serving the request, which only renders blocks for builds on that same
+  host. On a multi-host runbot the session block would land on the wrong
+  host and the redirect would miss. This needs revisiting before running on
+  a multi-host setup.
+
 Credits
 =======
 
