@@ -141,25 +141,26 @@ class RunbotBuildVscodeSession(models.Model):
         return result.returncode == 0 and result.stdout.strip() == b"true"
 
     def _build_source_mounts(self):
-        """Read the build container's read-only mounts under /data/build/ so we
-        can mirror them. That is where runbot exposes the repo sources, and
-        without these the side container shows an empty workspace."""
+        """Return the build container's read-only /data/build/ mounts so we can
+        mirror them; that is where runbot exposes the repo sources. Raises
+        UserError if the build container cannot be read."""
         self.ensure_one()
         try:
             result = subprocess.run(
                 ["docker", "inspect", "-f", "{{json .Mounts}}", self.build_id._get_docker_name()],
                 capture_output=True,
                 timeout=DOCKER_TIMEOUT,
-                check=False,
+                check=True,
             )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            return []
-        if result.returncode != 0:
-            return []
-        try:
             mounts = json.loads(result.stdout or b"[]")
-        except json.JSONDecodeError:
-            return []
+        except (
+            subprocess.TimeoutExpired,
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            json.JSONDecodeError,
+        ) as exc:
+            _logger.warning("could not read source mounts for build %s: %s", self.build_id.dest, exc)
+            raise UserError(_("Could not read the build's files; make sure it is running and try again."))
         return [
             (m["Source"], m["Destination"])
             for m in mounts
