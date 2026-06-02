@@ -45,6 +45,7 @@ VSCODE_USER_SETTINGS = {
 # ~/.local, so reinstalling on later sessions is a quick no-op.
 VSCODE_EXTENSIONS = [
     "Anthropic.claude-code",
+    "zaaack.markdown-editor",
 ]
 
 
