@@ -41,6 +41,11 @@ VSCODE_USER_SETTINGS = {
     "workbench.startupEditor": "none",
     "remote.autoForwardPorts": False,
 }
+# Extensions installed before code-server starts. They land in the mounted
+# ~/.local, so reinstalling on later sessions is a quick no-op.
+VSCODE_EXTENSIONS = [
+    "Anthropic.claude-code",
+]
 
 
 class RunbotBuildVscodeSession(models.Model):
@@ -246,15 +251,11 @@ class RunbotBuildVscodeSession(models.Model):
         # so the side container sees the same /data/build/<repo>/ layout.
         for src, dst in self._build_source_mounts():
             cmd += ["-v", f"{src}:{dst}:ro"]
-        cmd += [
-            image_tag,
-            "code-server",
-            "--bind-addr",
-            f"0.0.0.0:{VSCODE_CONTAINER_PORT}",
-            "--auth",
-            "none",
-            "/data/build",
-        ]
+        # Install the extensions, then hand the process over to code-server
+        # (exec keeps it as PID 1 so --rm and docker stop still work).
+        startup = "".join(f'code-server --install-extension "{ext}" || true\n' for ext in VSCODE_EXTENSIONS)
+        startup += f"exec code-server --bind-addr 0.0.0.0:{VSCODE_CONTAINER_PORT} --auth none /data/build"
+        cmd += [image_tag, "bash", "-c", startup]
         try:
             result = subprocess.run(
                 cmd,
