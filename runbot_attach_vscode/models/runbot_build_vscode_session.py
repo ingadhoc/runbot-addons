@@ -35,6 +35,12 @@ PRESEED_MCP_SERVERS = {
         "url": "https://tuqui.com/mcp/adhoc",
     },
 }
+# Defaults seeded into code-server's settings.json on a user's first session.
+VSCODE_USER_SETTINGS = {
+    "workbench.colorTheme": "Default Dark Modern",
+    "workbench.startupEditor": "none",
+    "remote.autoForwardPorts": False,
+}
 
 
 class RunbotBuildVscodeSession(models.Model):
@@ -185,8 +191,15 @@ class RunbotBuildVscodeSession(models.Model):
         auth_dir = self._auth_dir()
         # We create these folders as the runbot user, so they end up owned by
         # the same user the container runs as.
-        for sub in (".claude", ".codex", ".gemini"):
+        for sub in (".claude", ".codex", ".gemini", ".local"):
             os.makedirs(os.path.join(auth_dir, sub), exist_ok=True)
+        # Seed the settings once; later sessions keep what the user changed.
+        settings_dir = os.path.join(auth_dir, ".local", "share", "code-server", "User")
+        settings_json = os.path.join(settings_dir, "settings.json")
+        if not os.path.exists(settings_json):
+            os.makedirs(settings_dir, exist_ok=True)
+            with open(settings_json, "w") as f:
+                json.dump(VSCODE_USER_SETTINGS, f, indent=4)
         # Claude Code keeps the logged-in account in ~/.claude.json (next to the
         # .claude folder, not inside it). Pre-seed the MCP servers here so the
         # user only needs to pick one in /mcp and authenticate.
@@ -226,6 +239,8 @@ class RunbotBuildVscodeSession(models.Model):
             f"{os.path.join(auth_dir, '.codex')}:{CONTAINER_HOME}/.codex:rw",
             "-v",
             f"{os.path.join(auth_dir, '.gemini')}:{CONTAINER_HOME}/.gemini:rw",
+            "-v",
+            f"{os.path.join(auth_dir, '.local')}:{CONTAINER_HOME}/.local:rw",
         ]
         # Mirror the repo sources runbot mounts on the build's own container,
         # so the side container sees the same /data/build/<repo>/ layout.
