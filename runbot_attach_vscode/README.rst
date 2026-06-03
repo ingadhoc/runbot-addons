@@ -140,11 +140,9 @@ System parameters:
     Host root for per-user login folders. Default:
     ``~/.adhoc-runbot-auth`` of the runbot user.
 
-The pinned code-server version lives in the layer's ``values`` field
-(``CODE_SERVER_VERSION``, default ``4.96.4``). To override per
-Dockerfile, set the ``values`` JSON of the consuming
-``reference_layer`` — see ``runbot.docker_layer._render_template`` for
-the merge order (base + source + caller).
+The layer installs the latest code-server release (the install script
+is run without a version pin), so a rebuilt image picks up new
+versions automatically.
 
 Limitations
 ===========
