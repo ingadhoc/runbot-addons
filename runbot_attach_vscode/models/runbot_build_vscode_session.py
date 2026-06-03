@@ -40,6 +40,10 @@ VSCODE_USER_SETTINGS = {
     "workbench.colorTheme": "Default Dark Modern",
     "workbench.startupEditor": "none",
     "remote.autoForwardPorts": False,
+    "security.workspace.trust.enabled": False,
+    "security.workspace.trust.banner": "never",
+    "security.workspace.trust.startupPrompt": "never",
+    "security.workspace.trust.untrustedFiles": "open",
 }
 # Extensions installed before code-server starts. They land in the mounted
 # ~/.local, so reinstalling on later sessions is a quick no-op.
