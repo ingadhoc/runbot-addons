@@ -261,6 +261,7 @@ class RunbotBuildVscodeSession(models.Model):
         # Install the extensions, then hand the process over to code-server
         # (exec keeps it as PID 1 so --rm and docker stop still work).
         startup = "".join(f'code-server --install-extension "{ext}" || true\n' for ext in VSCODE_EXTENSIONS)
+        startup += "adhoc-way init || true\n"
         startup += f"exec code-server --bind-addr 0.0.0.0:{VSCODE_CONTAINER_PORT} --auth none /data/build"
         cmd += [image_tag, "bash", "-c", startup]
         try:
