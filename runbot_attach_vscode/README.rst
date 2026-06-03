@@ -3,12 +3,13 @@ Runbot Attach VS Code
 =====================
 
 Bakes `code-server <https://github.com/coder/code-server>`_ (VS Code in
-the browser) plus a curated set of AI coding CLIs (Claude Code, OpenAI
-Codex, Google Gemini, OpenCode) into runbot Dockerfiles via a reusable
+the browser) into runbot Dockerfiles via a reusable
 ``runbot.docker_layer``. Each wakeable ``runbot.build`` whose Dockerfile
 attaches that layer exposes an *Open VS Code* button that opens, **per
 user**, a dedicated code-server side container attached to the build —
-with the AI CLIs ready to use from its integrated terminal.
+with the AI coding CLIs (Claude Code, OpenAI Codex, Google Gemini,
+OpenCode), which ship in the base image, ready to use from its
+integrated terminal.
 
 Per-user isolation
 ==================
@@ -101,12 +102,11 @@ The URL helper is a no-op when the build's Dockerfile does not attach
 the code-server reference layer (see ``_has_vscode_layer``), so builds
 on unrelated Dockerfiles keep working unchanged.
 
-AI CLIs baked into the layer
-============================
+AI CLIs
+=======
 
-On top of code-server, the layer installs Node 20 (from NodeSource) and
-the following npm-distributed CLIs, available globally in the build
-container:
+The build container ships these AI coding CLIs from the base image,
+available globally in the code-server terminal:
 
 * ``claude`` — `Claude Code <https://docs.claude.com/en/docs/claude-code/overview>`_
   (``@anthropic-ai/claude-code``).
@@ -116,9 +116,8 @@ container:
   (``@google/gemini-cli``).
 * ``opencode`` — `OpenCode <https://opencode.ai/>`_ (``opencode-ai``).
 
-All four are installed in the same ``RUN`` as code-server to keep the
-image layer count low. Image cost: ~1.1 GB of ``/usr/lib/node_modules``
-on top of the ~430 MB code-server already adds.
+This layer only installs code-server; the CLIs and their Node runtime
+live in the base image.
 
 The tools come without any login — each user signs in from the
 code-server terminal the first time. Because each user's login folders
