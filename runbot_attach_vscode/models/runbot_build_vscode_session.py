@@ -197,7 +197,7 @@ class RunbotBuildVscodeSession(models.Model):
         auth_dir = self._auth_dir()
         # We create these folders as the runbot user, so they end up owned by
         # the same user the container runs as.
-        for sub in (".claude", ".codex", ".gemini", ".local"):
+        for sub in (".claude", ".codex", ".gemini", ".local", ".adhoc"):
             os.makedirs(os.path.join(auth_dir, sub), exist_ok=True)
         # Seed the settings once; later sessions keep what the user changed.
         settings_dir = os.path.join(auth_dir, ".local", "share", "code-server", "User")
@@ -247,6 +247,8 @@ class RunbotBuildVscodeSession(models.Model):
             f"{os.path.join(auth_dir, '.gemini')}:{CONTAINER_HOME}/.gemini:rw",
             "-v",
             f"{os.path.join(auth_dir, '.local')}:{CONTAINER_HOME}/.local:rw",
+            "-v",
+            f"{os.path.join(auth_dir, '.adhoc')}:{CONTAINER_HOME}/.adhoc:rw",
         ]
         # Mirror the repo sources runbot mounts on the build's own container,
         # so the side container sees the same /data/build/<repo>/ layout.
