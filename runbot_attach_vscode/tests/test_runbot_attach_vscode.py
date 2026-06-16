@@ -3,12 +3,10 @@ from unittest.mock import patch
 
 from odoo.tests import TransactionCase, tagged
 
-from ..controllers.main import VsCodeController
-
 
 @tagged("-at_install", "post_install")
 class TestRunbotAttachVscode(TransactionCase):
-    """code-server layer, vscode availability, per-user sessions and auth."""
+    """code-server layer, vscode availability and per-user sessions."""
 
     @classmethod
     def setUpClass(cls):
@@ -145,36 +143,6 @@ class TestRunbotAttachVscode(TransactionCase):
             sessions[1].container_name,
             "each user's container is isolated",
         )
-
-    # --- auth (the security-critical property) -----------------------------
-
-    def test_token_verification(self):
-        """Token must be rejected for the wrong user, the wrong build, or when
-        expired, and accepted for the right (build, user) before expiry."""
-        with patch.object(VsCodeController, "_vscode_secret", staticmethod(lambda: b"testkey")):
-            token = VsCodeController._make_token(build_id=7, user_id=self.user_a.id, exp=2**31)
-            self.assertTrue(VsCodeController._verify_token(token, 7, self.user_a.id))
-            # signed for user A, must not validate for user B
-            self.assertFalse(VsCodeController._verify_token(token, 7, self.user_b.id))
-            # wrong build
-            self.assertFalse(VsCodeController._verify_token(token, 8, self.user_a.id))
-            # also valid when the user is not checked (build-only)
-            self.assertTrue(VsCodeController._verify_token(token, 7))
-            # expired token
-            expired = VsCodeController._make_token(build_id=7, user_id=self.user_a.id, exp=1)
-            self.assertFalse(VsCodeController._verify_token(expired, 7, self.user_a.id))
-
-    def test_token_roundtrip_is_stable(self):
-        """Every freshly made token must verify. Guards against signature bytes
-        being mistaken for the separator (the dot)."""
-        with patch.object(VsCodeController, "_vscode_secret", staticmethod(lambda: b"testkey")):
-            for build_id in range(1, 60):
-                for user_id in range(1, 5):
-                    token = VsCodeController._make_token(build_id, user_id, 2**31)
-                    self.assertTrue(
-                        VsCodeController._verify_token(token, build_id, user_id),
-                        f"token for build={build_id} user={user_id} failed to verify",
-                    )
 
     # --- teardown ----------------------------------------------------------
 

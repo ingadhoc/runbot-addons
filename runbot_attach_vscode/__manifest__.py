@@ -5,7 +5,7 @@
     "website": "https://www.adhoc.com.ar",
     "category": "Website",
     "version": "18.0.2.2.0",
-    "depends": ["runbot"],
+    "depends": ["runbot", "runbot_token_auth"],
     "data": [
         "security/ir.model.access.csv",
         "data/ir_config_parameter.xml",
