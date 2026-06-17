@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Add "OpenCode" to the user menu, next to "Logout" and "Web". Clicking
+         it opens (creating if needed) the user's personal workspace. -->
+    <template id="runbot_layout_opencode_menu" inherit_id="runbot.layout">
+        <xpath expr="//div[hasclass('js_usermenu')]/a[@t-attf-href='/web']" position="after">
+            <a class="dropdown-item"
+               groups="base.group_user"
+               role="menuitem"
+               href="/runbot/opencode"
+               target="_blank">OpenCode</a>
+        </xpath>
+    </template>
+
+</odoo>
