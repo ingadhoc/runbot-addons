@@ -4,7 +4,7 @@
     "author": "ADHOC SA",
     "website": "https://www.adhoc.com.ar",
     "category": "Website",
-    "version": "18.0.2.2.0",
+    "version": "18.0.2.3.0",
     "depends": ["runbot", "runbot_token_auth"],
     "data": [
         "security/ir.model.access.csv",
