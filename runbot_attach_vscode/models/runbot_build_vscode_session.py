@@ -2,7 +2,6 @@ import http.client
 import json
 import logging
 import os
-import re
 import socket
 import subprocess
 import time
@@ -97,15 +96,9 @@ class RunbotBuildVscodeSession(models.Model):
 
     @api.depends("user_id")
     def _compute_user_key(self):
+        signer = self.env["runbot.token.signer"]
         for session in self:
-            user = session.user_id
-            if not user:
-                session.user_key = False
-                continue
-            # Keep only the part before the `@` so email logins stay short.
-            local_part = (user.login or "").split("@")[0]
-            login_slug = re.sub(r"[^a-z0-9]+", "-", local_part.lower()).strip("-")
-            session.user_key = f"{user.id}-{login_slug}" if login_slug else str(user.id)
+            session.user_key = signer._user_key(session.user_id) if session.user_id else False
 
     @api.depends("build_id.dest", "user_key")
     def _compute_container_name(self):
