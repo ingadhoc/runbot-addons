@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- One server block per running workspace, reached at
+         <suffix>-<user_key>.<host>. Workspaces are per-user (not per-build),
+         so this goes in root_anchor, outside runbot's loop over builds.
+
+         ACCESS CHECK: before every request, nginx asks
+         /runbot/opencode/auth_check?user=<user_key>. The controller checks the
+         token is valid, not expired, and owned by this user — so user A's token
+         cannot open user B's workspace. No valid token sends the user to
+         /runbot/opencode, which gives them a fresh one (or the login page).
+
+         The Connection header switches between "upgrade" and "close" so the
+         same block serves both OpenCode's web pages and its live connection.
+         The 7-day timeouts keep long sessions open. -->
+    <record id="runbot_nginx_config_opencode" model="ir.ui.view">
+        <field name="name">runbot.nginx_config.opencode</field>
+        <field name="type">qweb</field>
+        <field name="inherit_id" ref="runbot.nginx_config"/>
+        <field name="arch" type="xml">
+            <xpath expr="//t[@id='root_anchor']" position="after">
+                <t t-foreach="env['runbot.opencode.workspace'].search([('state', '=', 'running'), ('port', '!=', False)])" t-as="workspace">
+server {
+    listen 8080;
+    server_name ~^opencode-<t t-out="re_escape(workspace.user_key)"/>\.<t t-out="re_escape(host_name)"/>$;
+
+    location = /__opencode_auth_check {
+        internal;
+        proxy_pass http://127.0.0.1:8069/runbot/opencode/auth_check?user=<t t-out="workspace.user_key"/>;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header Host <t t-out="host_name"/>;
+        proxy_set_header X-Forwarded-Proto $real_scheme;
+    }
+
+    location @opencode_login_redirect {
+        return 302 $real_scheme://<t t-out="host_name"/>/runbot/opencode;
+    }
+
+    # Public OAuth callback (state+PKCE-secured); bypass auth_request so the cross-site redirect from the provider isn't 302'd to login.
+    location = /mcp/oauth/callback {
+        proxy_pass http://127.0.0.1:<t t-out="workspace.port"/>;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $real_scheme;
+    }
+
+    location / {
+        auth_request /__opencode_auth_check;
+        error_page 401 403 = @opencode_login_redirect;
+
+        proxy_pass http://127.0.0.1:<t t-out="workspace.port"/>;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $real_scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        set $opencode_conn_upgrade upgrade;
+        if ($http_upgrade = "") { set $opencode_conn_upgrade close; }
+        proxy_set_header Connection $opencode_conn_upgrade;
+        proxy_read_timeout 7d;
+        proxy_send_timeout 7d;
+    }
+}
+                </t>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

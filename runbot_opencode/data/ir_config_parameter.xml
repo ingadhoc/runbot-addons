@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- Host path of the oba-project checkout, kept in sync outside this module. -->
+    <record id="ir_config_parameter_oba_project_path" model="ir.config_parameter">
+        <field name="key">runbot_opencode.oba_project_path</field>
+        <field name="value">/home/runbot/sync-repos/oba-project</field>
+    </record>
+
+    <!-- Stop a workspace's container after this many idle hours. -->
+    <record id="ir_config_parameter_idle_timeout_hours" model="ir.config_parameter">
+        <field name="key">runbot_opencode.idle_timeout_hours</field>
+        <field name="value">8</field>
+    </record>
+
+    <!-- URL scheme (http/https) for the personal address. -->
+    <record id="ir_config_parameter_scheme" model="ir.config_parameter">
+        <field name="key">runbot_opencode.scheme</field>
+        <field name="value">https</field>
+    </record>
+
+    <!-- OpenCode container image, with the agent tooling (opencode, adhoc-way). -->
+    <record id="ir_config_parameter_image" model="ir.config_parameter">
+        <field name="key">runbot_opencode.image</field>
+        <field name="value">docker.io/adhoc/ops-tools:open-code-server-latest</field>
+    </record>
+
+</odoo>

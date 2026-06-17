@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="runbot_opencode_bundle_view_list" model="ir.ui.view">
+        <field name="name">runbot.opencode.bundle.list</field>
+        <field name="model">runbot.opencode.bundle</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="bundle_id"/>
+                <field name="project_id"/>
+                <field name="trigger_id"/>
+                <field name="dir_name"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="runbot_opencode_bundle_view_form" model="ir.ui.view">
+        <field name="name">runbot.opencode.bundle.form</field>
+        <field name="model">runbot.opencode.bundle</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="bundle_id"/>
+                        <field name="project_id"/>
+                        <field name="trigger_id"/>
+                        <field name="dir_name"/>
+                        <field name="active"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="runbot_opencode_bundle_action" model="ir.actions.act_window">
+        <field name="name">OpenCode Bundles</field>
+        <field name="res_model">runbot.opencode.bundle</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="runbot_menu_opencode_bundle"
+              parent="runbot_menu_opencode"
+              sequence="20"
+              action="runbot_opencode_bundle_action"
+              groups="runbot.group_runbot_admin"/>
+
+</odoo>

@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_runbot_opencode_workspace_user,runbot.opencode.workspace.user,model_runbot_opencode_workspace,runbot.group_user,1,0,0,0
+access_runbot_opencode_workspace_admin,runbot.opencode.workspace.admin,model_runbot_opencode_workspace,runbot.group_runbot_admin,1,1,1,1
+access_runbot_opencode_bundle_user,runbot.opencode.bundle.user,model_runbot_opencode_bundle,runbot.group_user,1,0,0,0
+access_runbot_opencode_bundle_admin,runbot.opencode.bundle.admin,model_runbot_opencode_bundle,runbot.group_runbot_admin,1,1,1,1
