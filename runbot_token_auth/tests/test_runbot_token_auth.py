@@ -31,3 +31,14 @@ class TestRunbotTokenAuth(TransactionCase):
                     [str(build_id), str(user_id), str(2**31)],
                     f"token for build={build_id} user={user_id} failed to verify",
                 )
+
+    def test_user_key(self):
+        """The shared per-user key is `<id>-<login-slug>`: the slug keeps only
+        the part before the `@` and slugifies it, so the per-user container
+        modules all land on the same handle. auth_check parses the leading id."""
+        signer = self.env["runbot.token.signer"]
+        user = self.env["res.users"].create({"name": "Key User", "login": "key.user@example.com"})
+        self.assertEqual(signer._user_key(user), f"{user.id}-key-user")
+        # a login with nothing slug-worthy falls back to the bare id.
+        odd = self.env["res.users"].create({"name": "Odd", "login": "@@@"})
+        self.assertEqual(signer._user_key(odd), str(odd.id))
