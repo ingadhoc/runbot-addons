@@ -21,6 +21,7 @@ READY_TIMEOUT = 30.0
 API_KEY_ENV = {
     "runbot_opencode.anthropic_api_key": "ANTHROPIC_API_KEY",
     "runbot_opencode.openai_api_key": "OPENAI_API_KEY",
+    "runbot_opencode.moonshotai_api_key": "MOONSHOTAI_API_KEY",
 }
 
 
