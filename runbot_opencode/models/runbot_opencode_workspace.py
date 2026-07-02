@@ -12,6 +12,10 @@ from odoo.exceptions import UserError
 _logger = logging.getLogger(__name__)
 
 DOCKER_TIMEOUT = 20
+# Hard memory cap per workspace container, so one runaway agent can't starve
+# the host (swap is already tight with many concurrent workspaces).
+# --memory-swap set equal to --memory disables swap for the container.
+CONTAINER_MEMORY_LIMIT = "3g"
 # Symlink each oba-XX dir carries, pointing at its build's read-only sources.
 OBA_REPOSITORIES_LINK = "repositories"
 # Seconds to wait for OpenCode to answer HTTP after docker run.
@@ -110,6 +114,17 @@ class RunbotOpencodeWorkspace(models.Model):
             sock.bind(("127.0.0.1", 0))
             return sock.getsockname()[1]
 
+    @api.model
+    def _port_is_free(self, port):
+        """True if the given loopback port can still be bound, i.e. no other
+        process grabbed it while the container was down."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind(("127.0.0.1", port))
+                return True
+            except OSError:
+                return False
+
     # --- latest build sources ---------------------------------------------
 
     def _get_host_builds_root_path(self):
@@ -205,7 +220,10 @@ class RunbotOpencodeWorkspace(models.Model):
         if not image:
             self.state = "error"
             raise UserError(_("Set the OpenCode image in runbot_opencode.image first."))
-        if not self.port:
+        # Reuse the workspace's stored port across restarts so its nginx block
+        # stays valid; only pick a new one if it was never set or got taken by
+        # another process while the container was down.
+        if not self.port or not self._port_is_free(self.port):
             self.port = self._find_free_port()
 
         host_workspace_dir_path = self._get_host_workspace_dir_path()
@@ -218,6 +236,11 @@ class RunbotOpencodeWorkspace(models.Model):
             "run",
             "-d",
             "--rm",
+            # Cap memory so one runaway agent can't starve the host.
+            "--memory",
+            CONTAINER_MEMORY_LIMIT,
+            "--memory-swap",
+            CONTAINER_MEMORY_LIMIT,
             "--name",
             self.container_name,
             "-p",
@@ -323,10 +346,15 @@ class RunbotOpencodeWorkspace(models.Model):
                 except (subprocess.TimeoutExpired, FileNotFoundError):
                     _logger.warning("docker rm failed for %s", workspace.container_name)
             # The workspace folder is left on the host, so the user keeps their
-            # files between sessions.
+            # files between sessions. Keep `port` so a later restart reuses the
+            # same address and the nginx block stays consistent.
             if workspace.state == "running":
                 workspace._log_audit("closed")
-            workspace.write({"state": "idle", "port": False})
+            workspace.write({"state": "idle"})
+        # Drop the dead upstream from nginx now, so open browser sessions stop
+        # hitting the stopped container's port and flooding the error log.
+        if self:
+            self.env["runbot.runbot"]._reload_nginx()
 
     def action_stop_container(self):
         """Stop button on the admin form (buttons can't call private methods)."""
