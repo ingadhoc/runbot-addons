@@ -10,7 +10,7 @@
     <!-- Stop a workspace's container after this many idle hours. -->
     <record id="ir_config_parameter_idle_timeout_hours" model="ir.config_parameter">
         <field name="key">runbot_opencode.idle_timeout_hours</field>
-        <field name="value">8</field>
+        <field name="value">2</field>
     </record>
 
     <!-- URL scheme (http/https) for the personal address. -->
