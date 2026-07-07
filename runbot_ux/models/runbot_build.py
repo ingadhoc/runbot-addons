@@ -1,3 +1,4 @@
+import configparser
 import fnmatch
 import os
 
@@ -66,3 +67,47 @@ class RunbotBuild(models.Model):
             modules_to_test |= repo_modules
 
         return ["/" + module for module in sorted(modules_to_test)]
+
+    def _docker_run(self, *args, **kwargs):
+        res = super()._docker_run(*args, **kwargs)
+        # The base method has just written .odoorc; inject the auto-install
+        # policy so the build honors the same modules as client bases.
+        self._inject_auto_install_config()
+        return res
+
+    def _inject_auto_install_config(self):
+        """Write the version's auto-install lists into the build's .odoorc.
+
+        Key names differ by version: 19.0+ uses the [module_change_auto_install]
+        section, 18.0 and older use the flat [options] keys. Both are read by the
+        saas_client patch.
+        """
+        self.ensure_one()
+        version = self.params_id.version_id
+        enabled = version.modules_auto_install_enabled or ""
+        disabled = version.modules_auto_install_disabled or ""
+        if not enabled and not disabled:
+            return  # nothing to inject (e.g. master, which has no policy)
+
+        if version.name >= "19.0":
+            section, key_enabled, key_disabled = "module_change_auto_install", "modules_enabled", "modules_disabled"
+        else:
+            section, key_enabled, key_disabled = (
+                "options",
+                "modules_auto_install_enabled",
+                "modules_auto_install_disabled",
+            )
+
+        rc_path = self._path(".odoorc")
+        if not os.path.exists(rc_path):
+            return
+        # RawConfigParser: no %-interpolation, so existing values (e.g. log
+        # formats) with '%' don't blow up on read.
+        parser = configparser.RawConfigParser()
+        parser.read(rc_path)
+        if not parser.has_section(section):
+            parser.add_section(section)
+        parser.set(section, key_enabled, enabled)
+        parser.set(section, key_disabled, disabled)
+        with open(rc_path, "w") as rc_file:
+            parser.write(rc_file)

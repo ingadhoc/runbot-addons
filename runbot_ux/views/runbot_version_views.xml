@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_runbot_version_tree_ux" model="ir.ui.view">
+        <field name="model">runbot.version</field>
+        <field name="inherit_id" ref="runbot.view_runbot_version_tree"/>
+        <field name="arch" type="xml">
+            <field name="dockerfile_id" position="after">
+                <field name="modules_auto_install_enabled" optional="hide"/>
+                <field name="modules_auto_install_disabled" optional="hide"/>
+            </field>
+        </field>
+    </record>
+</odoo>
