@@ -4,6 +4,7 @@
 ##############################################################################
 
 import ast
+import itertools
 import json
 import logging
 import os
@@ -139,15 +140,17 @@ class PullRequests(models.Model):
         self.ensure_one()
         try:
             github_api = self.repository.github()
-            files_response = github_api("get", f"pulls/{self.number}/files")
-            files = files_response.json() if files_response else []
-
             modified_module_names = set()
-            for file_info in files:
-                filename = file_info.get("filename", "")
-                # Get the top-level folder from the file path
-                if "/" in filename:
-                    modified_module_names.add(filename.split("/")[0])
+            # GitHub pages this listing, a PR with many files needs every page
+            for page in itertools.count(1):
+                files_response = github_api("get", f"pulls/{self.number}/files", params={"page": page})
+                for file_info in files_response.json():
+                    filename = file_info.get("filename", "")
+                    # Get the top-level folder from the file path
+                    if "/" in filename:
+                        modified_module_names.add(filename.split("/")[0])
+                if not files_response.links.get("next"):
+                    break
             return modified_module_names
         except Exception as e:
             _logger.warning("Could not get modified modules for PR %s: %s", self.number, e)
@@ -247,8 +250,7 @@ class PullRequests(models.Model):
             # Get the bare repository and clone it
             bare_repo = git.get_local(repository)
             if not bare_repo:
-                _logger.warning("Could not get repository %s", repository.name)
-                return
+                raise Exception(f"Could not get repository {repository.name}")
             # Clone from the current remote head (after the merge)
             repo = bare_repo.clone(tmpdir)
 
@@ -272,7 +274,7 @@ class PullRequests(models.Model):
                     if os.path.exists(os.path.join(addon_path, MANIFEST_NAME)):
                         addons_to_bump.append(addon_path)
             else:
-                addons_to_bump = self._get_modified_addons_for_prs(repo, tmpdir)
+                addons_to_bump = self._get_modified_addons_for_prs(tmpdir)
 
             for addon_dir in addons_to_bump:
                 addon_name = os.path.basename(addon_dir)
@@ -353,40 +355,22 @@ class PullRequests(models.Model):
                 _logger.info(
                     "Successfully pushed version bump to %s@%s: %s", repository.name, target_branch, new_commit
                 )
-
+            else:
+                raise Exception(
+                    "Nothing was bumped: found no module with a version in its manifest among the "
+                    f"changes of {', '.join(pr.display_name for pr in self)}"
+                )
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
-    def _get_modified_addons_for_prs(self, repo, repo_path):
+    def _get_modified_addons_for_prs(self, repo_path):
         """Get list of addon paths that were modified by the given PRs."""
         modified_addons = set()
         for pr in self:
-            # Fetch the PR branch and its target base from GitHub
-            fetch_pr = repo.with_config(check=True)._run(
-                "fetch", git.source_url(pr.repository), f"pull/{pr.number}/head:pr-{pr.number}"
-            )
-            if fetch_pr.returncode != 0:
-                raise Exception(f"Could not fetch PR {pr.number}: {fetch_pr.stderr}")
-            fetch_target = repo.with_config(check=True)._run(
-                "fetch", git.source_url(pr.repository), f"{pr.target.name}:target-{pr.target.name}"
-            )
-            if fetch_target.returncode != 0:
-                raise Exception(f"Could not fetch target branch {pr.target.name}: {fetch_target.stderr}")
-
-            # Get modified files using diff against the merge-base
-            # This ensures we only see changes from this PR, not from other merged PRs
-            diff_result = (
-                repo.stdout()
-                .with_config(text=True, check=True)
-                .diff("--name-only", f"target-{pr.target.name}...pr-{pr.number}")
-            )
-            if diff_result.returncode != 0:
-                raise Exception(f"Could not get diff for PR {pr.number}: {diff_result.stderr}")
-            modified_folders = set(
-                line.split("/")[0] for line in diff_result.stdout.strip().split("\n") if line.strip()
-            )
-            for folder in modified_folders:
-                addon_path = os.path.join(repo_path, folder)
+            # From GitHub, not a local diff: this runs after the merge, and a merge commit
+            # leaves the PR head inside the target, so the diff comes back empty.
+            for module_name in pr._get_modified_modules_names():
+                addon_path = os.path.join(repo_path, module_name)
                 if os.path.exists(os.path.join(addon_path, MANIFEST_NAME)):
                     modified_addons.add(addon_path)
 
