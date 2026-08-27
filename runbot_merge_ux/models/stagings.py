@@ -25,7 +25,7 @@ class Stagings(models.Model):
     def _post_merge_version_bump(self):
         """Perform version bump after successful merge."""
         # Find PRs that require version bumps
-        bump_prs = self.mapped("batch_ids.prs").filtered(lambda pr: pr.bump_policy == "bump")
+        bump_prs = self.mapped("batch_ids.prs").filtered(lambda pr: pr.bump_policy in ("bump", "bump-major"))
 
         if not bump_prs:
             return

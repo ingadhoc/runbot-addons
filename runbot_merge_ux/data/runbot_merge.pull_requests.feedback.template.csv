@@ -1,5 +1,5 @@
 id,template,help
-runbot_merge_ux.pr.bump_policy,"{pr.ping}this PR cannot be staged without a bump policy. Please specify either `bump` or `nobump` in your comment.","Comment when a PR is ready but doesn't have a bump policy set
+runbot_merge_ux.pr.bump_policy,"{pr.ping}this PR cannot be staged without a bump policy. Please specify `bump`, `bump-major` or `nobump` in your comment.","Comment when a PR is ready but doesn't have a bump policy set
 
 pr: the pr we can't stage"
 runbot_merge_ux.command.version_bump_failure,":warning: {pr.ping} **Version Bump Failed**
@@ -23,7 +23,7 @@ runbot_merge_ux.command.bump_invalid_modules,"The following modules specified fo
 
 Please verify the module names and ensure they are part of the changes in this PR. Only modules with modifications can be bumped.
 
-**The bump policy has not been set.** Please correct the module names and use the `bump` command again.","Posted when user requests bump=module1,module2 but some modules are not in the PR changes.
+**The bump policy has not been set.** Please correct the module names and set the bump policy again.","Posted when user requests bump=module1,module2 but some modules are not in the PR changes.
 
 pr: the PR
 invalid_modules: comma-separated list of invalid modules"
