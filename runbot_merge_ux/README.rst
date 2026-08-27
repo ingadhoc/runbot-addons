@@ -11,7 +11,7 @@ Features
 --------
 
 * Automatically increments addon versions in ``__manifest__.py`` after PR merge
-* Command-based control via PR comments (``bump`` / ``nobump`` / ``bumped``)
+* Command-based control via PR comments (``bump`` / ``bump-major`` / ``nobump`` / ``bumped``)
 * Manual retry button for failed version bumps
 * Success/failure notifications posted to PRs
 * Provider notification system for bump failures
@@ -27,15 +27,21 @@ Add a comment to your PR to enable version bumping for all modified modules::
 
     @mergebot bump
 
-To bump only specific modules, use a comma-separated list::
+To bump the major version instead of the minor one::
+
+    @mergebot bump-major
+
+To bump only specific modules, use a comma-separated list. It works with both commands::
 
     @mergebot bump=sale,purchase
+    @mergebot bump-major=sale,purchase
 
 To disable version bumping::
 
     @mergebot nobump
 
-The version bump happens automatically after merge if the PR has ``bump`` policy.
+The version bump happens automatically after merge if the PR has a ``bump`` or
+``bump-major`` policy.
 
 Manual retry
 ~~~~~~~~~~~~
@@ -54,12 +60,19 @@ Version Format
 
 Versions follow the pattern: ``series.major.minor.patch``
 
-When bumping:
+With ``bump``:
 
 * Minor version increments by 1
 * Patch version resets to 0
 
 Example: ``18.0.1.2.3`` → ``18.0.1.3.0``
+
+With ``bump-major``:
+
+* Major version increments by 1
+* Minor and patch versions reset to 0
+
+Example: ``18.0.1.2.3`` → ``18.0.2.0.0``
 
 Technical Details
 -----------------

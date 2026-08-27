@@ -22,20 +22,22 @@ _logger = logging.getLogger(__name__)
 VERSION_RE = re.compile(r"^(?P<series>\d+\.\d+)\.(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$")
 MANIFEST_VERSION_RE = re.compile(r"(?P<pre>[\"']version[\"']\s*:\s*[\"'])(?P<version>[\d\.]+)(?P<post>[\"'])")
 MANIFEST_NAME = "__manifest__.py"
+BUMP_COMMAND_RE = re.compile(r"\b(?P<policy>(?:no)?bump(?:-major)?)(?:=(?P<modules>[\w,]+))?\b", re.IGNORECASE)
 
 
-def _bump_version(version):
-    """Bump the minor version number."""
+def _bump_version(version, level="minor"):
+    """Bump the version number at the given level, resetting the lower ones."""
     mo = VERSION_RE.match(version)
     if not mo:
         raise Exception(f"Cannot bump version for invalid version string: {version}")
 
     series = mo.group("series")
-    major = mo.group("major")
-    minor = int(mo.group("minor")) + 1
-    patch = 0
+    major = int(mo.group("major"))
+    minor = int(mo.group("minor"))
 
-    return f"{series}.{major}.{minor}.{patch}"
+    if level == "major":
+        return f"{series}.{major + 1}.0.0"
+    return f"{series}.{major}.{minor + 1}.0"
 
 
 def _get_manifest_path(addon_dir):
@@ -52,6 +54,7 @@ class PullRequests(models.Model):
     bump_policy = fields.Selection(
         [
             ("bump", "bump"),
+            ("bump-major", "bump-major"),
             ("nobump", "nobump"),
         ],
         tracking=True,
@@ -80,13 +83,9 @@ class PullRequests(models.Model):
         bump_done = False
 
         for line in project._find_commands(body):
-            if re.search(r"\bnobump\b", line, flags=re.IGNORECASE):
-                bump_setting = "nobump"
-            elif match := re.search(r"\bbump=([\w,]+)", line, flags=re.IGNORECASE):
-                bump_setting = "bump"
-                bump_modules = match.group(1)
-            elif re.search(r"\bbump\b", line, flags=re.IGNORECASE):
-                bump_setting = "bump"
+            if match := BUMP_COMMAND_RE.search(line):
+                bump_setting = match.group("policy").lower()
+                bump_modules = match.group("modules")
             elif re.search(r"\bbumped\b", line, flags=re.IGNORECASE):
                 bump_done = True
 
@@ -107,9 +106,7 @@ class PullRequests(models.Model):
                         pull_request=self.number,
                         format_args={"pr": self, "invalid_modules": invalid_list},
                     )
-                    body = re.sub(r"\bbump(=[\w,]+)?\b", "", body, flags=re.IGNORECASE)
-                    body = re.sub(r"\bnobump\b", "", body, flags=re.IGNORECASE)
-                    comment["body"] = body
+                    comment["body"] = BUMP_COMMAND_RE.sub("", body)
                     return super()._parse_commands(author, comment, login)
 
             if self.bump_policy != bump_setting or self.bump_modules != bump_modules:
@@ -122,12 +119,11 @@ class PullRequests(models.Model):
                 if self.state == "ready":
                     self.env.ref("runbot_merge.staging_cron")._trigger()
             # strip the tokens so the base parser does not reject them
-            body = re.sub(r"\bbump(=[\w,]+)?\b", "", body, flags=re.IGNORECASE)
-            body = re.sub(r"\bnobump\b", "", body, flags=re.IGNORECASE)
+            body = BUMP_COMMAND_RE.sub("", body)
             comment["body"] = body
 
         if bump_done:
-            if self.bump_status != "success" and self.bump_policy == "bump":
+            if self.bump_status != "success" and self.bump_policy in ("bump", "bump-major"):
                 self.bump_status = "success"
             # strip the token so the base parser does not reject it
             body = re.sub(r"\bbumped\b", "", body, flags=re.IGNORECASE)
@@ -265,6 +261,8 @@ class PullRequests(models.Model):
             manifest_updates = {}
             bumped_info = {}  # addon_name -> new_version
 
+            level = "major" if self[0].bump_policy == "bump-major" else "minor"
+
             # Get list of specific modules to bump if specified
             if self[0].bump_modules:
                 specific_module_names = [m.strip() for m in self[0].bump_modules.split(",")]
@@ -291,7 +289,7 @@ class PullRequests(models.Model):
                     if not current_version:
                         continue
 
-                    new_version = _bump_version(current_version)
+                    new_version = _bump_version(current_version, level)
                     if new_version == current_version:
                         continue
 
