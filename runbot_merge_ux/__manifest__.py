@@ -19,7 +19,7 @@
 ##############################################################################
 {
     "name": "Runbot Merge UX",
-    "version": "17.0.0.2.0",
+    "version": "17.0.0.3.0",
     "category": "Technical",
     "author": "ADHOC SA",
     "website": "https://www.adhoc.com.ar",
