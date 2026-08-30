@@ -43,12 +43,19 @@ VSCODE_USER_SETTINGS = {
     "security.workspace.trust.banner": "never",
     "security.workspace.trust.startupPrompt": "never",
     "security.workspace.trust.untrustedFiles": "open",
+    # Open Claude Code in the bottom panel on startup. The view has no native
+    # open-on-startup setting, so auto-run-command fires its command for us.
+    "claudeCode.preferredLocation": "panel",
+    "auto-run-command.rules": [
+        {"condition": "always", "command": "claude-vscode.editor.openLast"},
+    ],
 }
 # Extensions installed before code-server starts. They land in the mounted
 # ~/.local, so reinstalling on later sessions is a quick no-op.
 VSCODE_EXTENSIONS = [
     "Anthropic.claude-code",
     "zaaack.markdown-editor",
+    "synedra.auto-run-command",
 ]
 
 
