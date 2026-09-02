@@ -12,9 +12,6 @@
         "views/repo_views.xml",
         "views/runbot_version_views.xml",
     ],
-    "demo": [
-        "demo/runbot_ux_demo.xml",
-    ],
     "license": "AGPL-3",
     "installable": True,
 }

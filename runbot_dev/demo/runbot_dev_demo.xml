@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Host. Two things about the name. It must match the forced-host-name
+         flag given to runbot_builder/main.py: the server resolves the host by
+         fqdn() (the container id) and the builder by that flag. And it must
+         resolve from the browser, because runbot builds the log links as
+         <scheme>://<host>/runbot/static/... - with a name that does not
+         resolve the builds come out green but with no clickable logs. This
+         follows the traefik pattern of the devcontainers,
+         <db>.<version>.odoo.localhost; override it with RUNBOT_HOST_NAME in
+         setup.sh. is_leader defaults to False, and without a leader no batch is
+         ever created. -->
+    <record id="host_local" model="runbot.host">
+        <field name="name">runbot.18.odoo.localhost</field>
+        <field name="is_leader" eval="True"/>
+        <field name="is_builder" eval="True"/>
+        <field name="nb_worker">4</field>
+    </record>
+
+    <!-- The R&amp;D project runbot ships stays empty here and only adds noise to
+         the frontend: two projects, two base bundles. Archived, not deleted:
+         the core references it by xml id as a default in team, codeowner and
+         branch, and as a fallback in version._compute_base_bundle_id, and
+         env.ref() resolves an archived record all the same. -->
+    <record id="runbot.main_project" model="runbot.project">
+        <field name="active" eval="False"/>
+    </record>
+
+    <record id="project_oba_dev" model="runbot.project">
+        <field name="name">Odoo by Adhoc (dev)</field>
+    </record>
+
+    <!-- Repos. Both remote names are placeholders: _create_dev_data writes the
+         real local paths, which differ per machine. They need at least three
+         "/" segments because Remote._compute_base_infos slices s[-3:] out of
+         them to guess domain / owner / repo name. -->
+    <record id="repo_adhoc_cicd_odoo" model="runbot.repo">
+        <field name="name">adhoc-cicd-odoo-odoo</field>
+        <field name="project_id" ref="project_oba_dev"/>
+        <field name="server_files">odoo-bin</field>
+        <field name="manifest_files">__manifest__.py</field>
+        <field name="addons_paths">addons,odoo/addons</field>
+        <field name="test_modules">-*</field>
+        <field name="mode">poll</field>
+    </record>
+    <record id="remote_adhoc_cicd_odoo" model="runbot.remote">
+        <field name="name">/placeholder/adhoc-cicd/odoo-odoo</field>
+        <field name="repo_id" ref="repo_adhoc_cicd_odoo"/>
+        <field name="fetch_heads" eval="True"/>
+        <field name="fetch_pull" eval="False"/>
+        <field name="send_status" eval="False"/>
+    </record>
+
+    <!-- enterprise: same name and shape as the productive repo (empty
+         server_files and addons_paths, its modules live at the root). A
+         dependency only: its modules are not tested. -->
+    <record id="repo_adhoc_cicd_enterprise" model="runbot.repo">
+        <field name="name">adhoc-cicd-odoo-enterprise</field>
+        <field name="project_id" ref="project_oba_dev"/>
+        <field name="server_files"></field>
+        <field name="manifest_files">__manifest__.py</field>
+        <field name="addons_paths"></field>
+        <field name="test_modules">-*</field>
+        <field name="mode">poll</field>
+    </record>
+    <record id="remote_adhoc_cicd_enterprise" model="runbot.remote">
+        <field name="name">/placeholder/adhoc-cicd/odoo-enterprise</field>
+        <field name="repo_id" ref="repo_adhoc_cicd_enterprise"/>
+        <field name="fetch_heads" eval="True"/>
+        <field name="fetch_pull" eval="False"/>
+        <field name="send_status" eval="False"/>
+    </record>
+
+    <record id="repo_ingadhoc_dev" model="runbot.repo">
+        <field name="name">ingadhoc-dev</field>
+        <field name="project_id" ref="project_oba_dev"/>
+        <field name="server_files"></field>
+        <field name="manifest_files">__manifest__.py</field>
+        <field name="addons_paths"></field>
+        <field name="test_modules">-*,module_*</field>
+        <field name="mode">poll</field>
+    </record>
+    <record id="remote_ingadhoc_dev" model="runbot.remote">
+        <field name="name">/placeholder/ingadhoc/dev</field>
+        <field name="repo_id" ref="repo_ingadhoc_dev"/>
+        <field name="fetch_heads" eval="True"/>
+        <field name="fetch_pull" eval="False"/>
+        <field name="send_status" eval="False"/>
+    </record>
+
+    <!-- Build config. The shipped "all" step installs every available module,
+         which here would mean the whole of odoo. -->
+    <record id="step_18_all_with_tests" model="runbot.build.config.step">
+        <field name="name">18-all-with-tests</field>
+        <field name="description">Instala los modulos de fixture y corre sus tests</field>
+        <!-- web_enterprise spelled out to be deterministic, even though its
+             auto_install on web would bring it in on its own. -->
+        <field name="install_modules">-*,module_*,web_enterprise</field>
+        <field name="test_enable" eval="True"/>
+        <field name="cpu_limit">600</field>
+        <field name="default_sequence">20</field>
+    </record>
+    <record id="config_18_oba_with_tests" model="runbot.build.config">
+        <field name="name">[18.0] Odoo by Adhoc Config (with tests)</field>
+        <field name="description">Mismo nombre y forma que el config productivo, con los 4 modulos de juguete</field>
+        <field name="step_order_ids" eval="[(5, 0, 0), (0, 0, {'step_id': ref('step_18_all_with_tests')})]"/>
+    </record>
+
+    <record id="trigger_18_all" model="runbot.trigger">
+        <field name="name">[18.0] All</field>
+        <field name="project_id" ref="project_oba_dev"/>
+        <field name="repo_ids" eval="[(6, 0, [ref('repo_ingadhoc_dev')])]"/>
+        <field name="dependency_ids" eval="[(6, 0, [ref('repo_adhoc_cicd_odoo'), ref('repo_adhoc_cicd_enterprise')])]"/>
+        <field name="config_id" ref="config_18_oba_with_tests"/>
+        <field name="category_id" ref="runbot.default_category"/>
+        <field name="ci_context"></field>
+
+    </record>
+
+    <!-- Base bundle for the 18.0 branch. Its version is created on the fly by
+         runbot from the name. -->
+    <record id="bundle_18_0" model="runbot.bundle">
+        <field name="name">18.0</field>
+        <field name="project_id" ref="project_oba_dev"/>
+        <field name="is_base" eval="True"/>
+    </record>
+
+    <!-- The DockerDefault image installs the requirements of odoo master, and
+         odoo 18.0 still needs packages master dropped (odoo/tools/cache.py
+         imports decorator). The build container has no network, so it cannot
+         install them itself: they have to come in the image. -->
+    <record id="runbot.docker_layer_branch_req" model="runbot.docker_layer">
+        <field name="values" eval="{'odoo_branch': '18.0'}"/>
+    </record>
+    <!-- The other layer with the branch hardcoded: the debian/control it takes
+         the system packages from. -->
+    <record id="runbot.docker_layer_masterdebiancontroll" model="runbot.docker_layer">
+        <field name="values" eval="{'odoo_branch': '18.0', 'os_release_name': '`lsb_release -s -c`'}"/>
+    </record>
+
+    <!-- The chrome layer of DockerDefault pins a .deb version that Google no
+         longer keeps in its pool, so the image never builds. The toy tests are
+         plain TransactionCase, no browser needed. -->
+    <delete model="runbot.docker_layer" search="[('name', 'ilike', 'chrome')]"/>
+
+    <!-- Without this the log links come out as https, and the local frontend is
+         http. runbot already creates the parameter in its own data, so it is
+         overridden by xml id: creating it again hits the unique key
+         constraint. -->
+    <record id="runbot.use_ssl" model="ir.config_parameter">
+        <field name="value">False</field>
+    </record>
+
+    <function model="runbot.runbot" name="_create_dev_data"/>
+
+</odoo>
