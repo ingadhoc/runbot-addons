@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="build_config_step_test_post_install" model="runbot.build.config.step">
+        <field name="name">test-post-install</field>
+        <field name="job_type">install_odoo</field>
+        <field name="create_db" eval="False"/>
+        <field name="custom_db_name">all</field>
+        <field name="install_modules">-*</field>
+        <!-- The tags of the child come in config_data, and the step only reads
+             them when tests are enabled. -->
+        <field name="test_enable" eval="True"/>
+        <!-- The times per module of every child are what balances the next
+             split. -->
+        <field name="make_stats" eval="True"/>
+        <field name="build_stat_regex_ids" eval="[(6, 0, [ref('build_stat_regex_test_time')])]"/>
+    </record>
+
+    <record id="build_config_step_cleanup_post_install" model="runbot.build.config.step">
+        <field name="name">cleanup-post-install</field>
+        <field name="job_type">python</field>
+        <field name="test_enable" eval="False"/>
+        <!-- After the test step, whose default sequence is 100. -->
+        <field name="default_sequence">200</field>
+        <!-- Nobody reads the database of a child: a failure is looked at in
+             the logs, which this keeps. -->
+        <field name="python_code">build._local_cleanup(force=True)</field>
+    </record>
+
+    <record id="build_config_test_post_install" model="runbot.build.config">
+        <field name="name">Test post install</field>
+        <field name="description">Restores the database of the parent build and runs its part of the post_install tests</field>
+        <field name="step_order_ids" eval="[(5, 0, 0),
+            (0, 0, {'step_id': ref('runbot.runbot_build_config_step_restore')}),
+            (0, 0, {'step_id': ref('build_config_step_test_post_install')}),
+            (0, 0, {'step_id': ref('build_config_step_cleanup_post_install')})]"/>
+    </record>
+
+    <record id="build_config_step_create_post_install" model="runbot.build.config.step">
+        <field name="name">create-post-install</field>
+        <field name="job_type">python</field>
+        <!-- A python step with no result code is checked like an odoo step, and
+             the first check looks for a log file that a python step never
+             writes. -->
+        <field name="test_enable" eval="False"/>
+        <field name="python_code">build._create_post_install_children(self.number_builds)</field>
+    </record>
+</odoo>
