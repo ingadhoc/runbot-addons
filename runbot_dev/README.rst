@@ -135,19 +135,23 @@ Lo que hace, y por qué cada cosa:
    clones del container son parciales (filtro ``blob:none``) y no pueden servir
    objetos por ``upload-pack``. Efecto lateral bueno: queda en el volumen y
    sobrevive a que recreen el container.
-5. **Parcha dos líneas del core copiado.** En ``container.py``, el origen del
+5. **Parcha tres líneas del core copiado.** En ``container.py``, el origen del
    mount del socket de postgres: el container de build corre con
    ``network_mode='none'`` y su única vía a postgres es el socket unix que
    runbot le monta desde ``/var/run/postgresql`` del host, que acá no existe. El
    parche apunta el origen al socket alineado y deja el destino igual, así que
-   el build se conecta exactamente como en producción. Y en ``commit.py``, el
-   ``--mtime`` del ``git archive`` (ver abajo). Los dos parches son idempotentes
-   y avisan si no encuentran qué parchar.
+   el build se conecta exactamente como en producción. En ``commit.py``, el
+   ``--mtime`` del ``git archive`` (ver abajo). Y en ``build.py``, el esquema de
+   las URLs de los logs (ver abajo). Los tres parches son idempotentes y avisan
+   si no encuentran qué parchar.
 6. **Postgres local**, con el socket en el directorio alineado y el ``PGDATA``
    en el volumen. No usa el postgres compartido del container ``db`` porque su
    socket no es alcanzable desde el host.
-7. **Crea la base** e instala ``runbot_dev`` con sus datos demo.
-8. **Arranca el builder** con el path alineado primero en el ``addons-path``
+7. **Levanta el sidecar de logs**: un nginx en un container que publica
+   ``runbot/static`` en un puerto del host. Es la única vía por la que un build
+   puede bajarse el dump de otro (ver abajo).
+8. **Crea la base** e instala ``runbot_dev`` con sus datos demo.
+9. **Arranca el builder** con el path alineado primero en el ``addons-path``
    —odoo devuelve la primera coincidencia, y de eso depende que ``_root()`` sea
    el alineado— y con el nombre de host que declaran los datos demo, que es el
    único lugar donde vive.
@@ -200,9 +204,10 @@ Por eso hay un script espejo::
 
     repositories/runbot-addons/runbot_dev/dev_bin/cleanup.sh
 
-Por default saca lo que es de este entorno: baja el builder y el postgres,
-borra el árbol entero, el symlink de alineación y las bases de build huérfanas
-—en el postgres local **y en el compartido**, que es donde nadie las busca—.
+Saca lo que es de este entorno: baja el builder, el postgres y el sidecar de
+logs, borra el árbol entero, el symlink de alineación y las bases de build
+huérfanas —en el postgres local **y en el compartido**, que es donde nadie las
+busca—.
 Más una base ``runbot`` en el compartido si quedó, porque un frontend que
 arranque sin ``--db_host`` se conecta a ésa.
 
@@ -220,8 +225,9 @@ Qué sobrevive a recrear el container
 ====================================
 
 En el volumen (sobreviven): el core, el postgres, los repos de juguete y la
-base. En el overlay (se van): las deps de pip, nginx y el symlink de
-alineación. Volver a correr el ``setup.sh`` los repone y saltea el resto.
+base. En el daemon del host (sobrevive): el sidecar de logs. En el overlay (se
+van): las deps de pip, nginx y el symlink de alineación. Volver a correr el
+``setup.sh`` los repone y saltea el resto.
 
 Notas
 =====
@@ -245,6 +251,27 @@ Notas
   ``skip_requirements``: el paquete hace falta de verdad, no es una dependencia
   de los módulos que se testean. Después de cambiar la capa hay que dejar que el
   builder reconstruya la imagen.
+- **La imagen tampoco trae** ``wget``, y ``_run_restore`` lo usa para bajar el
+  dump del build padre, así que un step de tipo ``restore`` muere sin él. Los
+  datos demo agregan una capa que lo instala, reusando el template de paquetes
+  del core. Nuestra imagen productiva sí lo trae: viene del base
+  ``adhoc/odoo-adhoc``, no de estas capas.
+- **``runbot.use_ssl`` no se puede apagar.** ``get_param`` devuelve
+  ``value or default``, así que un valor vacío cae en el default ``True`` y
+  cualquier otro valor es un string no vacío, o sea verdadero. Por eso el
+  esquema de las URLs de los logs se parcha en ``build.py`` y no por parámetro.
+- **Un build container no llega al frontend de este devcontainer.** Están en
+  bridges de docker distintas —el daemon es el del host— y el nombre del host de
+  runbot no resuelve ahí: comprobado, ``timeout`` contra la IP del devcontainer
+  y ``NXDOMAIN`` para el nombre. Sólo importa para un step ``restore``, que baja
+  el dump del build padre por HTTP. Lo que un build container sí alcanza es el
+  gateway de su propia bridge, así que ahí se sirven los logs: el sidecar.
+  Como el puerto se publica en el host, **el navegador llega a la misma URL**,
+  y el nombre del ``runbot.host`` queda intacto — el frontend sigue respondiendo
+  donde respondía. La base de esas URLs vive en el parámetro
+  ``runbot_dev.log_url_base``, que ``setup.sh`` escribe, y el parche de
+  ``build.py`` la usa. En producción nada de esto se da: el frontend y los
+  builds viven en la misma máquina.
 - **``PGHOST`` es imprescindible para el builder y para el frontend.** runbot
   hace sus operaciones de administración —crear y borrar las bases de cada
   build, listar las bases locales, la base de logs— con

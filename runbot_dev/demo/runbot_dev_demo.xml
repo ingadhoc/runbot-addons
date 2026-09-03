@@ -139,18 +139,22 @@
         <field name="values" eval="{'odoo_branch': '18.0', 'os_release_name': '`lsb_release -s -c`'}"/>
     </record>
 
+    <!-- _run_restore downloads the dump of the parent build with wget, and the
+         package list of DockerDefault does not include it. Our productive image
+         has it from its own base, this is only missing here. -->
+    <record id="docker_layer_wget" model="runbot.docker_layer">
+        <field name="name">Install wget</field>
+        <field name="dockerfile_id" ref="runbot.docker_default"/>
+        <field name="reference_docker_layer_id" ref="runbot.docker_layer_debian_packages_template"/>
+        <field name="layer_type">reference_layer</field>
+        <field name="sequence">150</field>
+        <field name="packages">wget</field>
+    </record>
+
     <!-- The chrome layer of DockerDefault pins a .deb version that Google no
          longer keeps in its pool, so the image never builds. The toy tests are
          plain TransactionCase, no browser needed. -->
     <delete model="runbot.docker_layer" search="[('name', 'ilike', 'chrome')]"/>
-
-    <!-- Without this the log links come out as https, and the local frontend is
-         http. runbot already creates the parameter in its own data, so it is
-         overridden by xml id: creating it again hits the unique key
-         constraint. -->
-    <record id="runbot.use_ssl" model="ir.config_parameter">
-        <field name="value">False</field>
-    </record>
 
     <function model="runbot.runbot" name="_create_dev_data"/>
 

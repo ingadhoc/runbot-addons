@@ -19,6 +19,8 @@ DATA=/home/odoo/data
 DB=runbot
 PG_VERSION=15
 ODOO_SRC=/home/odoo/src/odoo
+LOG_CONTAINER=runbot-dev-logs
+LOG_PORT=8888
 ENTERPRISE_SRC=/home/odoo/src/enterprise
 
 say() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
@@ -120,8 +122,8 @@ else
 fi
 
 # ---------------------------------------------------------------- core patches
-# Two things in the runbot core do not work in this container. Both are patched
-# in the copy, so nothing else has to be worked around later.
+# Three things in the runbot core do not work in this container. All of them
+# are patched in the copy, so nothing else has to be worked around later.
 say "Parches del core"
 python3 - "$CORE" "$PGSOCK_ALIGNED" <<'PY'
 import sys
@@ -160,6 +162,26 @@ if old not in s:
 else:
     open(path, "w").write(s.replace(old, "", 1))
     print("   ok    commit.py: git archive sin --mtime")
+
+# The urls of the build logs have two readers: the browser, and the wget of a
+# child build restoring the dump of its parent. A build container cannot reach
+# this devcontainer, so those urls point at a sidecar that serves the same
+# files on a port of the host. The name of the runbot.host is left alone, so
+# the frontend keeps answering where it did. runbot.use_ssl is no help here
+# either: get_param returns `value or default`, so it cannot be turned off.
+path = core + "/runbot/models/build.py"
+s = open(path).read()
+old = """        use_ssl = self.env['ir.config_parameter'].get_param('runbot.use_ssl', default=True)
+        return '%s://%s/runbot/static/build/%s/logs/' % ('https' if use_ssl else 'http', self.host, self.dest)"""
+new = """        # runbot_dev: ver dev_bin/setup.sh
+        base = self.env['ir.config_parameter'].sudo().get_param('runbot_dev.log_url_base') or 'http://%s' % self.host
+        return '%s/runbot/static/build/%s/logs/' % (base.rstrip('/'), self.dest)"""
+if "runbot_dev.log_url_base" in s:
+    print("   skip  build.py ya arma las urls con la base del sidecar")
+else:
+    assert old in s, "no encontre _http_log_url en build.py"
+    open(path, "w").write(s.replace(old, new, 1))
+    print("   ok    build.py: urls de logs por runbot_dev.log_url_base")
 PY
 
 # ---------------------------------------------------------------- postgres
@@ -193,6 +215,25 @@ fi
 psql -h "$PGSOCK" -d postgres -tAc "select 1" >/dev/null || die "no puedo conectar al postgres local"
 ok "conexion ok: $(psql -h "$PGSOCK" -d postgres -tAc 'show server_version')"
 
+# ---------------------------------------------------------------- log sidecar
+say "Sidecar de logs"
+# A build container runs on the docker host, on another bridge, and neither
+# reaches this devcontainer nor resolves its name. What it does reach is the
+# gateway of its own bridge, so the logs are served there: it is the only way a
+# child build can download the dump of its parent.
+GATEWAY="$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null)"
+[ -n "$GATEWAY" ] || die "no pude averiguar el gateway de la bridge de docker"
+LOG_URL_BASE="http://$GATEWAY:$LOG_PORT"
+if [ "$(docker inspect -f '{{.State.Running}}' "$LOG_CONTAINER" 2>/dev/null)" = "true" ]; then
+    skip "$LOG_CONTAINER ya corriendo en $LOG_URL_BASE"
+else
+    docker rm -f "$LOG_CONTAINER" >/dev/null 2>&1
+    docker run -d --name "$LOG_CONTAINER" --restart unless-stopped -p "$LOG_PORT:80" \
+        -v "$CORE/runbot/static:/usr/share/nginx/html/runbot/static:ro" nginx:alpine >/dev/null \
+        || die "no pude levantar el sidecar de logs"
+    ok "$LOG_CONTAINER levantado en $LOG_URL_BASE"
+fi
+
 # ---------------------------------------------------------------- database
 say "Base $DB"
 # ENTERPRISE_SRC goes in the addons-path so web_enterprise gets installed in
@@ -212,6 +253,9 @@ fi
 # has to be told the same name: it resolves its host by this flag, while the
 # server resolves it by fqdn(). The name also has to resolve from the browser,
 # because runbot builds the log links as <scheme>://<host>/runbot/static/...
+psql -h "$PGSOCK" -d "$DB" -tAc "insert into ir_config_parameter (key, value) values ('runbot_dev.log_url_base', '$LOG_URL_BASE') on conflict (key) do update set value = excluded.value" >/dev/null
+ok "urls de logs contra $LOG_URL_BASE"
+
 HOST_NAME="$(psql -h "$PGSOCK" -d "$DB" -tAc "select name from runbot_host limit 1")"
 [ -n "$HOST_NAME" ] || die "no hay ningun runbot.host en la base $DB"
 
@@ -254,7 +298,8 @@ cat <<EOF
    core:     $CORE
    log:      $RUNBOT_ROOT/builder.log
 
-   host:     $HOST_NAME  (los links a los logs salen contra este nombre)
+   host:     $HOST_NAME  (el frontend responde contra este nombre)
+   logs:     $LOG_URL_BASE  (los alcanzan el navegador y los build containers)
 
    frontend (con --db_host y el core alineado primero, los dos hacen falta):
      $VENV/bin/odoo -d $DB --addons-path "$ADDONS" --load=base,web --db_host $PGSOCK
