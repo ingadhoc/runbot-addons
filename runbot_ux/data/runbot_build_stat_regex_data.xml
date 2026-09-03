@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="build_stat_regex_test_time" model="runbot.build.stat.regex">
+        <field name="name">test_time</field>
+        <field name="description">Seconds of tests per module, from the odoo.tests.stats lines</field>
+        <field name="regex">odoo\.tests\.stats: (?P&lt;key&gt;[\w.]+): \d+ tests (?P&lt;value&gt;\d+\.\d+)s</field>
+    </record>
+</odoo>
