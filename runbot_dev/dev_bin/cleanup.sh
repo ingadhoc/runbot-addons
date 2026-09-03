@@ -14,6 +14,7 @@ MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DATA=/home/odoo/data
 DB=runbot
 PG_VERSION=15
+LOG_CONTAINER=runbot-dev-logs
 BUILD_DB_RE='^[0-9]{5}-'  # runbot names them <build id>-<version>-...
 
 WITH_IMAGES=0
@@ -130,6 +131,13 @@ fi
 
 # ------------------------------------------------------------------ docker
 say "Docker"
+if [ -n "$(docker ps -aq -f "name=^${LOG_CONTAINER}$" 2>/dev/null)" ]; then
+    docker rm -f "$LOG_CONTAINER" >/dev/null 2>&1 && ok "sidecar de logs $LOG_CONTAINER borrado"
+else
+    skip "no habia sidecar de logs"
+fi
+
+
 # Only the images: the build containers run with auto_remove=True, so runbot
 # never leaves any behind.
 if [ "$WITH_IMAGES" = 1 ]; then
