@@ -32,6 +32,10 @@ class RunbotBuild(models.Model):
           - negative pat   → removes matching modules from the set
           - '-*,sale'      → empties first, then adds sale (idiomatic way to select a subset)
 
+        A build with config_data['disable_module_tags'] gets nothing injected
+        and runs only the tags it carries. That is how each child of a fan-out
+        runs its part, and it mirrors the native 'disable_auto_tags' key.
+
         To disable injection entirely, unset 'test_enable' on the config step.
 
         Returns:
@@ -39,6 +43,9 @@ class RunbotBuild(models.Model):
             ['/mod', ...]  list of per-module tag strings ready to inject into --test-tags
         """
         self.ensure_one()
+        if self.params_id.config_data.get("disable_module_tags"):
+            return []
+
         available_modules = self._get_available_modules()
 
         def _filter_patterns(patterns_list, default, all_modules):
@@ -67,6 +74,113 @@ class RunbotBuild(models.Model):
             modules_to_test |= repo_modules
 
         return ["/" + module for module in sorted(modules_to_test)]
+
+    def _create_post_install_children(self, number_builds):
+        """Split the post_install tests of this build into `number_builds` children.
+
+        `number_builds` is the field of the step, set from the interface: it is
+        not declared with the step, because it is a number to tune.
+
+        Every child restores the database this build dumped and runs a part of
+        the modules, so the tests of one commit run at the same time. The
+        negative tags go to every child: they turn tests off and have to keep
+        them off everywhere.
+        """
+        self.ensure_one()
+        if number_builds <= 1:
+            self._log(
+                "create_build",
+                "number_builds is not set on this step, so every test goes to a single child",
+                level="WARNING",
+            )
+        child_config = self.env.ref("runbot_ux.build_config_test_post_install")
+        # The children take the database and the tags from the last install step.
+        install_step = self.params_id.config_id.step_ids.filtered(lambda step: step.job_type == "install_odoo")[-1:]
+        # The parent skips post_install so the children can run it.
+        tags = [
+            tag
+            for raw in (install_step.test_tags or "").split(",")
+            if (tag := raw.strip()) and tag.lstrip("-+") != "post_install"
+        ]
+        excluded = [tag for tag in tags if tag.startswith("-")]
+        to_split = self._get_test_tags_from_modules() + [tag for tag in tags if not tag.startswith("-")]
+        for part in self._split_test_tags(to_split, number_builds):
+            child = self._add_child(
+                {
+                    "config_id": child_config.id,
+                    # The keys of the parent come along, because the child has to
+                    # behave like it: skip_requirements is one of them, and
+                    # without it the child pip installs from git with no network.
+                    "config_data": {
+                        **self.params_id.config_data,
+                        # The install step leaves a zip of its database next to its logs.
+                        "dump_url": "%s%s-%s.zip" % (self._http_log_url(), self.dest, install_step.db_name),
+                        # With nothing to update odoo runs every at_install
+                        # test, and the parent already ran them.
+                        "test_tags": ",".join(part + excluded + ["-at_install"]),
+                        "disable_module_tags": True,
+                    },
+                },
+                description="post install tests for **%s -> %s**" % (part[0].lstrip("/"), part[-1].lstrip("/")),
+            )
+            self._log(
+                "create_build", "created with config %s" % child_config.name, log_type="subbuild", path=str(child.id)
+            )
+
+    def _split_test_tags(self, tags, count):
+        """Cut the sorted tags into at most `count` ranges of a similar weight.
+
+        Sorted, so a part can be named by its bounds, the way odoo does it.
+        Weights are seconds per module from runbot.build.stat, which make_stats
+        fills with the test_time regex. A row holds only what that build ran,
+        so several are read; they are rough, because a module tested next to
+        seven others is slower than one tested alone. A tag never measured
+        counts as one second.
+        """
+        times = {}
+        # 50 rows is a handful of builds, because a fan-out leaves one row per
+        # child and each of them holds a part of the modules.
+        stats = self.env["runbot.build.stat"].search(
+            [
+                ("category", "=", "test_time"),
+                ("build_id.params_id.trigger_id", "=", self.params_id.trigger_id.id),
+            ],
+            order="id desc",
+            limit=50,
+        )
+        for stat in stats:
+            for module, seconds in stat.values.items():
+                times.setdefault(module, seconds)  # the newest build wins
+
+        def weight(tag):
+            return times.get(tag.lstrip("/"), 1)
+
+        tags = sorted(tags)
+
+        def parts_under(limit):
+            """The ranges that come out when none of them may pass `limit`."""
+            parts, part, load = [], [], 0
+            for tag in tags:
+                if part and load + weight(tag) > limit:
+                    parts.append(part)
+                    part, load = [], 0
+                part.append(tag)
+                load += weight(tag)
+            if part:
+                parts.append(part)
+            return parts
+
+        # Look for the lightest limit that still fits in `count` ranges, so no
+        # range is heavier than a range split can make it. Cutting at the
+        # average instead leaves everything that is left in the last range.
+        low, high = max(map(weight, tags), default=0), sum(map(weight, tags))
+        while high - low > 0.01:
+            middle = (low + high) / 2
+            if len(parts_under(middle)) <= count:
+                high = middle
+            else:
+                low = middle
+        return parts_under(high)
 
     def _docker_run(self, *args, **kwargs):
         res = super()._docker_run(*args, **kwargs)

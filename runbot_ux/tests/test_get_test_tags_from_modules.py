@@ -126,3 +126,21 @@ class TestGetTestTagsFromModules(RunbotCase):
         with self._patch_available():
             tags = self.build._get_test_tags_from_modules()
         self.assertEqual(sorted(tags), ["/account", "/mail", "/sale", "/stock"])
+
+    # ------------------------------------------------------------------
+    # A build with its own tags gets no injection (fan-out children)
+    # ------------------------------------------------------------------
+    def test_disable_module_tags_stops_the_injection(self):
+        self.repo_addons.test_modules = "-*,sale"
+        self.params.config_data = {"test_tags": "/account", "disable_module_tags": True}
+        with self._patch_available():
+            tags = self.build._get_test_tags_from_modules()
+        self.assertEqual(tags, [], "the build runs the tags it carries, the repo modules would widen them")
+
+    def test_own_tags_alone_do_not_stop_the_injection(self):
+        # config_data['test_tags'] is the native way to add tags to a build. On
+        # its own it still gets the modules of the repos.
+        self.params.config_data = {"test_tags": "/account"}
+        with self._patch_available():
+            tags = self.build._get_test_tags_from_modules()
+        self.assertEqual(sorted(tags), ["/account", "/base", "/mail", "/sale", "/stock"])
