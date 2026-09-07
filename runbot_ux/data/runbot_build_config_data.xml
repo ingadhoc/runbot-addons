@@ -26,6 +26,21 @@
         <field name="python_code">build._local_cleanup(force=True)</field>
     </record>
 
+    <record id="build_config_step_cleanup_keep_dump" model="runbot.build.config.step">
+        <field name="name">cleanup-keep-dump</field>
+        <field name="job_type">python</field>
+        <field name="test_enable" eval="False"/>
+        <!-- After the test step, whose default sequence is 100. -->
+        <field name="default_sequence">200</field>
+        <!-- Only the database: the post_install children still need the zip.
+             The gc takes the rest a day later. -->
+        <field name="python_code">for database in build.database_ids:
+    build._local_pg_dropdb(database.name)
+
+days = int(build.env['ir.config_parameter'].sudo().get_param('runbot.db_gc_days', 30))
+build.write({'gc_delay': 1 - days})</field>
+    </record>
+
     <record id="build_config_test_post_install" model="runbot.build.config">
         <field name="name">Test post install</field>
         <field name="description">Restores the database of the parent build and runs its part of the post_install tests</field>
