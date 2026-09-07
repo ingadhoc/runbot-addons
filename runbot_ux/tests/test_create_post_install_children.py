@@ -125,6 +125,19 @@ class TestCreatePostInstallChildren(RunbotCase):
         self.assertEqual(sum(len(part) for part in parts), 4)
         self.assertEqual([len(part) for part in parts], [2, 2])
 
+    def test_the_leftover_of_the_last_part_goes_back_when_it_has_no_test(self):
+        self.env["runbot.build.stat"].create(
+            {
+                "build_id": self.build.id,
+                "category": "test_time",
+                "values": {"mod_a": 100, "mod_b": 100, "mod_c": 100},
+            }
+        )
+        parts = self.build._split_test_tags(["/mod_a", "/mod_b", "/mod_c", "/mod_z"], 4)
+        # mod_z never ran a test, so on its own it would give a child with 0
+        # tests, and odoo warns about that.
+        self.assertEqual(parts, [["/mod_a"], ["/mod_b"], ["/mod_c", "/mod_z"]])
+
     def test_no_empty_child_when_there_are_more_parts_than_tags(self):
         self.assertEqual(self.build._split_test_tags(["/sale"], 4), [["/sale"]])
 
