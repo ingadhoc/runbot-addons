@@ -2,7 +2,7 @@ import configparser
 import fnmatch
 import os
 
-from odoo import models
+from odoo import fields, models
 from odoo.tools import config
 
 
@@ -181,6 +181,53 @@ class RunbotBuild(models.Model):
             else:
                 low = middle
         return parts_under(high)
+
+    def _cron_gc_unused_builds(self):
+        """Free the builds that nobody is going to open again.
+
+        A build is not needed any more when its bundle has run again, or when
+        the bundle has no live branch left, which is what happens after a PR
+        is closed or merged. This shortens how long they are kept, so the
+        local cleanup of each host takes the database, the datadir and the
+        dump on its next loop. The logs are kept.
+        """
+        icp = self.env["ir.config_parameter"].sudo()
+        days_main = int(icp.get_param("runbot.db_gc_days", 30))
+        days_child = int(icp.get_param("runbot.db_gc_days_child", 15))
+        # An older build has nothing left on disk to free.
+        limit_date = fields.Datetime.subtract(fields.Datetime.now(), days=days_main + 1)
+        top_builds = self.search(
+            [
+                ("parent_id", "=", False),
+                ("create_date", ">", limit_date),
+                ("gc_delay", "=", 0),
+                # Done with its children: nobody is inside, no dump left to restore.
+                ("global_state", "=", "done"),
+                # The bundles of a build are the ones of its slots, and not
+                # create_bundle_id: build params are shared between builds with
+                # the same commits, so that field can name another bundle.
+                ("slot_ids.batch_id.bundle_id", "not any", [("sticky", "=", True)]),
+            ]
+        )
+        to_free = self.browse()
+        for top_build in top_builds:
+            batches = top_build.slot_ids.batch_id
+            bundles = batches.bundle_id
+            # A bundle still uses this build when the build has a slot on its
+            # last batch. All the slots are read, because an older build can be
+            # reused by the newest batch of another bundle.
+            if (bundles.last_batch & batches) and any(bundles.branch_ids.mapped("alive")):
+                continue
+            to_free |= top_build
+        if not to_free:
+            return
+        # One search for every family, because the builds that stay keep their
+        # gc_delay and come back on the next run: the loop above is walked
+        # whole every time, and a search inside it would be one query per build.
+        family = self.search([("id", "child_of", to_free.ids), ("gc_delay", "=", 0)])
+        children = family.filtered("parent_id")
+        (family - children).write({"gc_delay": -days_main - 1})
+        children.write({"gc_delay": -days_child - 1})
 
     def _docker_run(self, *args, **kwargs):
         res = super()._docker_run(*args, **kwargs)
