@@ -27,6 +27,7 @@ class TestCreatePostInstallChildren(RunbotCase):
         self.params = self.base_params.copy(
             {
                 "trigger_id": self.trigger_addons.id,
+                "create_batch_id": self.Batch.create({"bundle_id": self.master_bundle.id}).id,
                 "commit_link_ids": [
                     (0, 0, {"commit_id": self.server_commit.id}),
                     (0, 0, {"commit_id": self.addons_commit.id}),
@@ -50,6 +51,14 @@ class TestCreatePostInstallChildren(RunbotCase):
             "odoo.addons.runbot.models.build.BuildResult._get_available_modules",
             return_value=self._available_modules,
         )
+
+    def _build_on(self, bundle):
+        """A build of that bundle, which is where a recorded time comes from."""
+        batch = self.Batch.create({"bundle_id": bundle.id})
+        # extra_params is only there to keep the fingerprint apart: params with
+        # the same one are deduplicated, and create_batch_id is not part of it.
+        params = self.params.copy({"create_batch_id": batch.id, "extra_params": bundle.name})
+        return self.Build.create({"params_id": params.id})
 
     def _tags_of(self, build):
         return build.params_id.config_data["test_tags"].split(",")
@@ -118,6 +127,22 @@ class TestCreatePostInstallChildren(RunbotCase):
         self.assertEqual(
             parts,
             [["/mod_a"], ["/mod_b"], ["/mod_c", "/mod_d"], ["/mod_e", "/mod_f", "/mod_g"]],
+        )
+
+    def test_the_times_of_another_bundle_do_not_move_the_cut(self):
+        self.env["runbot.build.stat"].create(
+            {
+                "build_id": self._build_on(self.dev_bundle).id,
+                "category": "test_time",
+                "values": {"mod_a": 126, "mod_b": 106, "mod_c": 95, "mod_d": 63, "mod_e": 42, "mod_f": 40, "mod_g": 37},
+            }
+        )
+        parts = self.build._split_test_tags(["/mod_a", "/mod_b", "/mod_c", "/mod_d", "/mod_e", "/mod_f", "/mod_g"], 4)
+        # The same times as the balanced split above, recorded on a branch: the
+        # tags are cut as if nothing had ever been measured.
+        self.assertEqual(
+            parts,
+            [["/mod_a", "/mod_b"], ["/mod_c", "/mod_d"], ["/mod_e", "/mod_f"], ["/mod_g"]],
         )
 
     def test_tags_without_recorded_time_are_still_spread(self):
