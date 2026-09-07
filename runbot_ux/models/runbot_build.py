@@ -132,10 +132,11 @@ class RunbotBuild(models.Model):
 
         Sorted, so a part can be named by its bounds, the way odoo does it.
         Weights are seconds per module from runbot.build.stat, which make_stats
-        fills with the test_time regex. A row holds only what that build ran,
-        so several are read; they are rough, because a module tested next to
-        seven others is slower than one tested alone. A tag never measured
-        counts as one second.
+        fills with the test_time regex on the builds of the base bundle. A row
+        holds only what that build ran, so several are read; they are rough,
+        because a module tested next to seven others is slower than one tested
+        alone. A tag never measured counts as one second, so what a branch adds
+        weighs nothing until it merges.
         """
         times = {}
         # 50 rows is a handful of builds, because a fan-out leaves one row per
@@ -144,6 +145,7 @@ class RunbotBuild(models.Model):
             [
                 ("category", "=", "test_time"),
                 ("build_id.params_id.trigger_id", "=", self.params_id.trigger_id.id),
+                ("build_id.create_batch_id.bundle_id.is_base", "=", True),
             ],
             order="id desc",
             limit=50,
