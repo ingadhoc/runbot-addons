@@ -180,7 +180,14 @@ class RunbotBuild(models.Model):
                 high = middle
             else:
                 low = middle
-        return parts_under(high)
+
+        parts = parts_under(high)
+        # The last part takes what is left over, so it can end up with modules that
+        # never ran a test and a child with nothing to run. They go back to the part
+        # before, unless nothing was ever measured and every part looks like that one.
+        if times and len(parts) > 1 and not any(tag.lstrip("/") in times for tag in parts[-1]):
+            parts[-2].extend(parts.pop())
+        return parts
 
     def _docker_run(self, *args, **kwargs):
         res = super()._docker_run(*args, **kwargs)
