@@ -559,15 +559,16 @@ class AutoDatabaseBackup(models.Model):
                         "name": backup_filename,
                         "parents": [rec.google_drive_folderid],
                     }
-                    files = {
-                        "data": ("metadata", json.dumps(para), "application/json; charset=UTF-8"),
-                        "file": open(temp.name, "rb"),
-                    }
-                    resp = requests.post(
-                        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+                    # Resumable upload streams the file; multipart loads it whole in memory
+                    session = requests.post(
+                        "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
                         headers=headers,
-                        files=files,
+                        json=para,
                     )
+                    session.raise_for_status()
+                    with open(temp.name, "rb") as backup_file:
+                        resp = requests.put(session.headers["Location"], headers=headers, data=backup_file)
+                    resp.raise_for_status()
                     _logger.info(resp.text)
                     if rec.auto_remove:
                         query = "parents = '%s'" % rec.google_drive_folderid
@@ -591,8 +592,8 @@ class AutoDatabaseBackup(models.Model):
                     if rec.notify_user:
                         mail_template_success.send_mail(rec.id, force_send=True)
                 except Exception as e:
-                    rec.generated_exception = e
-                    _logger.info("Google Drive Exception: %s", e)
+                    rec.generated_exception = repr(e)
+                    _logger.exception("Google Drive Exception: %r", e)
                     if rec.notify_user:
                         mail_template_failed.send_mail(rec.id, force_send=True)
             # Dropbox backup
