@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_runbot_project_inherit" model="ir.ui.view">
+        <field name="name">runbot.project.form.inherit</field>
+        <field name="model">runbot.project</field>
+        <field name="inherit_id" ref="runbot.view_runbot_project"/>
+        <field name="arch" type="xml">
+            <field name="group_ids" position="after">
+                <field name="protect_live_builds"/>
+            </field>
+        </field>
+    </record>
+</odoo>

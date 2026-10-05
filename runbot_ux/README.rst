@@ -19,6 +19,10 @@ Características
   mismos módulos que las bases cliente, según ``force_auto_install`` de
   ``adhoc.module.module`` en el provider. Un cron diario sincroniza las listas
   por versión y se inyectan en el ``.odoorc`` de cada build.
+- **Builds vivos protegidos**: si el proyecto tiene *Protect Live Builds*,
+  el paso de run carga ``runbot_build_guard`` (si el build lo tiene en el addons
+  path; si no, deja un warning en el log del build) y apaga el gestor de bases.
+  Un proyecto sin grupos requeridos (público) no puede desmarcarlo.
 
 Configuración
 =============

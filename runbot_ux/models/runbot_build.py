@@ -238,12 +238,35 @@ class RunbotBuild(models.Model):
         (family - children).write({"gc_delay": -days_main - 1})
         children.write({"gc_delay": -days_child - 1})
 
-    def _docker_run(self, *args, **kwargs):
-        res = super()._docker_run(*args, **kwargs)
+    def _docker_run(self, step, *args, **kwargs):
+        res = super()._docker_run(step, *args, **kwargs)
         # The base method has just written .odoorc; inject the auto-install
         # policy so the build honors the same modules as client bases.
         self._inject_auto_install_config()
+        if step.job_type == "run_odoo" and self.params_id.project_id.protect_live_builds:
+            self._protect_live_build()
         return res
+
+    def _protect_live_build(self):
+        """Load runbot_build_guard and turn off the database manager, which
+        restores dumps as raw SQL, so a visitor of the live build cannot run code.
+        """
+        rc_path = self._path(".odoorc")
+        if not os.path.exists(rc_path):
+            return
+        parser = configparser.RawConfigParser()
+        parser.read(rc_path)
+        # A missing server-wide module breaks the asset bundles on 19.0+.
+        if any("runbot_build_guard" in modules for modules in self._get_available_modules().values()):
+            modules = parser.get("options", "server_wide_modules", fallback="base,web")
+            parser.set("options", "server_wide_modules", f"{modules},runbot_build_guard")
+        else:
+            self._log(
+                "run", "runbot_build_guard is not in the addons path: the live build runs without it", level="WARNING"
+            )
+        parser.set("options", "list_db", "False")
+        with open(rc_path, "w") as rc_file:
+            parser.write(rc_file)
 
     def _inject_auto_install_config(self):
         """Write the version's auto-install lists into the build's .odoorc.

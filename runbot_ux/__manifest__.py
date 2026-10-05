@@ -12,6 +12,7 @@
         "data/runbot_build_config_data.xml",
         "views/config_step_views.xml",
         "views/repo_views.xml",
+        "views/runbot_project_views.xml",
         "views/runbot_version_views.xml",
     ],
     "license": "AGPL-3",
