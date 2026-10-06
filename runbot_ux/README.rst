@@ -19,6 +19,9 @@ Características
   mismos módulos que las bases cliente, según ``force_auto_install`` de
   ``adhoc.module.module`` en el provider. Un cron diario sincroniza las listas
   por versión y se inyectan en el ``.odoorc`` de cada build.
+- **Triggers nightly y weekly**: un cron diario y uno semanal crean un batch de
+  esa categoría en cada bundle base que tenga un trigger de la categoría para
+  su versión.
 
 Configuración
 =============
