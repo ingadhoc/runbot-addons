@@ -19,4 +19,25 @@
         <field name="interval_type">days</field>
         <field name="active" eval="True"/>
     </record>
+    <record id="ir_cron_start_nightly_triggers" model="ir.cron">
+        <field name="name">Runbot: start nightly triggers</field>
+        <field name="model_id" ref="runbot.model_runbot_trigger"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_start_category("runbot.nightly_category")</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 05:00:00')"/>
+        <field name="active" eval="True"/>
+    </record>
+
+    <record id="ir_cron_start_weekly_triggers" model="ir.cron">
+        <field name="name">Runbot: start weekly triggers</field>
+        <field name="model_id" ref="runbot.model_runbot_trigger"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_start_category("runbot.weekly_category")</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">weeks</field>
+        <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 05:00:00')"/>
+        <field name="active" eval="True"/>
+    </record>
 </odoo>
