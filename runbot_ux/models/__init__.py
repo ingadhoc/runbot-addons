@@ -1,4 +1,5 @@
 from . import runbot_batch
+from . import runbot_branch
 from . import runbot_build
 from . import runbot_build_config
 from . import runbot_repo
