@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Only trusted IPs (runbot_ux.trusted_ips, comma separated) can write code on live builds -->
+    <template id="nginx_config_restrict_all" inherit_id="runbot.nginx_config" priority="20">
+        <xpath expr="//t[@id='root_anchor']" position="after">
+# The host nginx (behind Cloudflare) sends the real client IP in X-Real-IP
+set_real_ip_from 127.0.0.1;
+real_ip_header X-Real-IP;
+
+geo $runbot_trusted {
+  default 0;
+<t t-foreach="builds.env['ir.config_parameter'].sudo().get_param('runbot_ux.trusted_ips', '').split(',')" t-as="ip"><t t-if="ip.strip()" t-out="'\n  %s 1;' % ip.strip()"/></t>
+}
+        </xpath>
+        <xpath expr="//t[@id='build_anchor']" position="after">
+    location ~ ^/web/dataset/call_kw/(ir\.actions\.server|ir\.cron|base\.automation|ir\.model(\.fields)?|base\.import\.module)/(web_save|create|write|copy) {
+      error_page 418 = @runbot_denied;
+      if ($runbot_trusted = 0) { return 418; }
+      proxy_pass http://127.0.0.1:<t t-out="build.port"/>;
+    }
+    location @runbot_denied {
+      default_type application/json;
+      return 200 '{"jsonrpc": "2.0", "id": 0, "error": {"code": 200, "message": "Runbot Error", "data": {"name": "odoo.exceptions.UserError", "debug": "", "message": "Access denied from your location - please get in touch with the Runbot team or use a development database", "arguments": ["Access denied from your location - please get in touch with the Runbot team or use a development database"], "context": {}}}}';
+    }
+        </xpath>
+    </template>
+</odoo>
