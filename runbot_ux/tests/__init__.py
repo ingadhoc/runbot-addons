@@ -4,3 +4,4 @@ from . import test_gc_unused_builds
 from . import test_get_test_tags_from_modules
 from . import test_run_install_odoo
 from . import test_start_category
+from . import test_nginx_config

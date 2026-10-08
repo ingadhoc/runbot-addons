@@ -10,6 +10,7 @@
         "data/runbot_ux_data.xml",
         "data/runbot_build_stat_regex_data.xml",
         "data/runbot_build_config_data.xml",
+        "data/nginx_config.xml",
         "views/config_step_views.xml",
         "views/repo_views.xml",
         "views/runbot_version_views.xml",
