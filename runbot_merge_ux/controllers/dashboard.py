@@ -15,6 +15,7 @@ Line = dashboard.Line
 Lines = dashboard.Lines
 Text = dashboard.Text
 Checkbox = dashboard.Checkbox
+CheckValue = dashboard.CheckValue
 Decoration = dashboard.Decoration
 BG = dashboard.BG
 TEXT = dashboard.TEXT
@@ -64,9 +65,8 @@ def render_full_table_with_bump_policy(pr, branches, repos, batches):
                 error = blend(ERROR, opacity, over=background)
 
                 boxes = {
-                    False: Checkbox(False, icons, foreground, success, error),
-                    True: Checkbox(True, icons, foreground, success, error),
-                    None: Checkbox(None, icons, foreground, success, error),
+                    v: Checkbox(v, icons, foreground, success, error)
+                    for v in CheckValue
                 }
                 prs = []
                 attached = True
@@ -104,12 +104,12 @@ def render_full_table_with_bump_policy(pr, branches, repos, batches):
                     # no need for details if closed or in error
                     if pr.state not in ('merged', 'closed', 'error') and not pr.staging_id:
                         if pr.draft:
-                            lines.append(Line([boxes[False], Text("is in draft", font, error)]))
+                            lines.append(Line([boxes[CheckValue.FAILURE], Text("is in draft", font, error)]))
 
                         # Standard validations
                         lines.extend([
                             Line([
-                                boxes[bool(pr.squash or pr.merge_method)],
+                                boxes[CheckValue.SUCCESS if pr.squash or pr.merge_method else CheckValue.FAILURE],
                                 Text(
                                     "merge method: {}".format('single' if pr.squash else (pr.merge_method or 'missing')),
                                     font,
@@ -117,7 +117,7 @@ def render_full_table_with_bump_policy(pr, branches, repos, batches):
                                 ),
                             ]),
                             Line([
-                                boxes[bool(pr.reviewed_by)],
+                                boxes[CheckValue.SUCCESS if pr.reviewed_by else CheckValue.FAILURE],
                                 Text(
                                     "Reviewed" if pr.reviewed_by else "Not Reviewed",
                                     font,
@@ -129,7 +129,7 @@ def render_full_table_with_bump_policy(pr, branches, repos, batches):
                         # Add bump_policy check if the field exists
                         bump_text = f": {pr.bump_policy}" if pr.bump_policy else ""
                         lines.append(Line([
-                            boxes[bool(pr.bump_policy)],
+                            boxes[CheckValue.SUCCESS if pr.bump_policy else CheckValue.FAILURE],
                             Text(
                                 f"Bump policy{bump_text}",
                                 font,
@@ -147,10 +147,16 @@ def render_full_table_with_bump_policy(pr, branches, repos, batches):
                             ]))
 
                         # CI check
+                        if pr.batch_id.skipchecks or pr.status == 'success':
+                            ci_state = CheckValue.SUCCESS
+                        elif pr.status == 'failure':
+                            ci_state = CheckValue.FAILURE
+                        else:
+                            ci_state = CheckValue.PENDING
                         lines.append(
                             Line([
-                                boxes[pr.batch_id.skipchecks or pr.status == 'success'],
-                                Text("CI", font, foreground if pr.batch_id.skipchecks or pr.status == 'success' else error),
+                                boxes[ci_state],
+                                Text("CI", font, error if ci_state == CheckValue.FAILURE else foreground),
                             ])
                         )
 
@@ -161,16 +167,18 @@ def render_full_table_with_bump_policy(pr, branches, repos, batches):
                                 if (status := statuses.get(ci.context.strip())) is None:
                                     if ci.prs != 'required':
                                         continue
-                                    status = {'state': 'pending'}
+                                    status = {'state': None}
                                 color = foreground
                                 match status['state']:
                                     case 'error' | 'failure':
                                         color = error
-                                        box = boxes[False]
+                                        box = boxes[CheckValue.FAILURE]
                                     case 'success':
-                                        box = boxes[True]
-                                    case _:
-                                        box = boxes[None]
+                                        box = boxes[CheckValue.SUCCESS]
+                                    case 'pending':
+                                        box = boxes[CheckValue.PENDING]
+                                    case None:
+                                        box = boxes[CheckValue.LAZY]
 
                                 lines.append(Line([
                                     Text(" - ", font, color),
