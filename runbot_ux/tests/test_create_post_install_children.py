@@ -45,6 +45,11 @@ class TestCreatePostInstallChildren(RunbotCase):
             self.repo_server: ["base"],
             self.repo_addons: ["sale", "account", "stock"],
         }
+        self.start_patcher(
+            "build_get_installed_modules",
+            "odoo.addons.runbot_ux.models.runbot_build.RunbotBuild._get_installed_modules",
+            return_value={"base", "sale", "account", "stock", "analytic", "uom"},
+        )
 
     def _patch_available(self):
         return patch(
@@ -78,6 +83,20 @@ class TestCreatePostInstallChildren(RunbotCase):
             ["/account", "/analytic", "/base", "/sale", "/stock", "/uom"],
             "the modules of the repos plus the positive tags of the step, each in one child only",
         )
+
+    def test_modules_not_installed_in_the_parent_are_not_split(self):
+        # stock is not installable in this version, so odoo skipped it in the
+        # parent; its time comes from the base bundle, where it is.
+        self.patchers["build_get_installed_modules"].return_value = {"base", "sale", "account", "analytic", "uom"}
+        self.env["runbot.build.stat"].create(
+            {"build_id": self.build.id, "category": "test_time", "values": {"stock": 100, "sale": 1}}
+        )
+        with self._patch_available():
+            self.build._create_post_install_children(2)
+
+        included = [tag for child in self.build.children_ids for tag in self._tags_of(child) if not tag.startswith("-")]
+        self.assertNotIn("/stock", included)
+        self.assertEqual(len(self.build.children_ids), 2, "every child has a module that is installed")
 
     def test_the_phase_tag_of_the_parent_does_not_reach_the_children(self):
         with self._patch_available():

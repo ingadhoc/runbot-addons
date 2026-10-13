@@ -3,6 +3,7 @@ import fnmatch
 import os
 
 from odoo import fields, models
+from odoo.addons.runbot.common import local_pg_cursor
 from odoo.tools import config
 
 
@@ -104,6 +105,14 @@ class RunbotBuild(models.Model):
         ]
         excluded = [tag for tag in tags if tag.startswith("-")]
         to_split = self._get_test_tags_from_modules() + [tag for tag in tags if not tag.startswith("-")]
+        db_name = "%s-%s" % (self.dest, install_step.db_name)
+        # A repo lists the modules that are not installable in this version too,
+        # and odoo skips them without a word. A time recorded where they are
+        # installable would still give them a child that runs nothing.
+        installed = self._get_installed_modules(db_name)
+        to_split = [
+            tag for tag in to_split if not tag.startswith("/") or tag[1:].split(":")[0].split(".")[0] in installed
+        ]
         for part in self._split_test_tags(to_split, number_builds):
             child = self._add_child(
                 {
@@ -114,7 +123,7 @@ class RunbotBuild(models.Model):
                     "config_data": {
                         **self.params_id.config_data,
                         # The install step leaves a zip of its database next to its logs.
-                        "dump_url": "%s%s-%s.zip" % (self._http_log_url(), self.dest, install_step.db_name),
+                        "dump_url": "%s%s.zip" % (self._http_log_url(), db_name),
                         # With nothing to update odoo runs every at_install
                         # test, and the parent already ran them.
                         "test_tags": ",".join(part + excluded + ["-at_install"]),
@@ -126,6 +135,12 @@ class RunbotBuild(models.Model):
             self._log(
                 "create_build", "created with config %s" % child_config.name, log_type="subbuild", path=str(child.id)
             )
+
+    def _get_installed_modules(self, db_name):
+        """The modules installed in a database of this build."""
+        with local_pg_cursor(db_name) as cr:
+            cr.execute("SELECT name FROM ir_module_module WHERE state = 'installed'")
+            return {name for (name,) in cr.fetchall()}
 
     def _split_test_tags(self, tags, count):
         """Cut the sorted tags into at most `count` ranges of a similar weight.
