@@ -14,6 +14,7 @@
         "views/config_step_views.xml",
         "views/repo_views.xml",
         "views/runbot_version_views.xml",
+        "views/runbot_trusted_ip_templates.xml",
     ],
     "license": "AGPL-3",
     "installable": True,

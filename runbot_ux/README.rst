@@ -19,6 +19,11 @@ Características
   mismos módulos que las bases cliente, según ``force_auto_install`` de
   ``adhoc.module.module`` en el provider. Un cron diario sincroniza las listas
   por versión y se inyectan en el ``.odoorc`` de cada build.
+- **Código en builds vivos solo desde IPs de confianza**: nginx bloquea crear o
+  editar acciones de servidor, crons, automatizaciones y campos, e importar
+  módulos, salvo desde las IPs del parámetro ``runbot_ux.trusted_ips``. Un
+  usuario interno suma su IP hasta la medianoche desde *Test server actions*
+  (``/runbot/trusted_ip``), en el menú de usuario; un cron las borra cada día.
 - **Triggers nightly y weekly**: un cron diario y uno semanal crean un batch de
   esa categoría en cada bundle base que tenga un trigger de la categoría para
   su versión.
