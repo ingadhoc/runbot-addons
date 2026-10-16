@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="trusted_ip_page">
+        <t t-call="runbot.layout">
+            <div class="container my-4" style="max-width: 720px;">
+                <h3>Test server actions on live builds</h3>
+                <p>
+                    Live builds block creating or editing server actions, crons, automations and fields,
+                    and importing modules, unless the request comes from a trusted IP.
+                    Add your public IP here to unlock it on every live build until midnight (Argentina time).
+                </p>
+                <div class="alert alert-warning">
+                    <strong>Before you continue:</strong>
+                    those features run Python code on the build server.
+                    Anyone who shares your public IP (same office network, VPN, mobile carrier) gets the same access until the list is cleared.
+                </div>
+                <div t-if="saved" class="alert alert-success">
+                    <t t-out="ip"/> is trusted until midnight. In about a minute, once the runbot reloads nginx, it can write code on any live build.
+                </div>
+                <div t-if="error" class="alert alert-danger" t-out="error"/>
+                <form method="post" action="/runbot/trusted_ip">
+                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                    <label for="ip" class="form-label">Your public IP</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="ip" name="ip" t-att-value="ip" required="required"/>
+                        <button type="submit" class="btn btn-primary">Trust this IP</button>
+                    </div>
+                    <div class="form-text">
+                        The field shows the IP the runbot sees for you, when it can detect it.
+                        To check it, open <a href="https://ifconfig.me" target="_blank">ifconfig.me</a> from the same network.
+                        If your network uses IPv4 and IPv6, add both.
+                    </div>
+                </form>
+            </div>
+        </t>
+    </template>
+
+    <template id="layout_trusted_ip_menu" inherit_id="runbot.layout">
+        <xpath expr="//div[hasclass('js_usermenu')]/a[@id='o_logout']" position="after">
+            <a t-if="user_id._is_internal()" class="dropdown-item" role="menuitem" href="/runbot/trusted_ip">Test server actions</a>
+        </xpath>
+    </template>
+</odoo>

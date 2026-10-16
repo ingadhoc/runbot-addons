@@ -40,4 +40,16 @@
         <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 05:00:00')"/>
         <field name="active" eval="True"/>
     </record>
+
+    <!-- Midnight in Argentina: IPs trusted from /runbot/trusted_ip last one day -->
+    <record id="ir_cron_clear_trusted_ips" model="ir.cron">
+        <field name="name">Runbot: clear IPs trusted for the day</field>
+        <field name="model_id" ref="model_runbot_trusted_ip"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_clear()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 03:00:00')"/>
+        <field name="active" eval="True"/>
+    </record>
 </odoo>
