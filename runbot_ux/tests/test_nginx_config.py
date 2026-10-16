@@ -1,7 +1,8 @@
 import re
 
+from odoo import http
 from odoo.addons.runbot.tests.common import RunbotCase
-from odoo.tests import tagged
+from odoo.tests import HttpCase, tagged
 
 
 @tagged("-at_install", "post_install")
@@ -32,8 +33,31 @@ class TestNginxConfig(RunbotCase):
         geo = conf.split("geo $runbot_trusted {")[1].split("}")[0]
         self.assertEqual(geo.split(), ["default", "0;"])
 
+    def test_ips_trusted_for_the_day(self):
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("runbot_ux.trusted_ips", "1.2.3.4")
+        params.set_param("runbot_ux.trusted_ips_today", "8.8.8.8")
+        geo = self._render(self.Build).split("geo $runbot_trusted {")[1].split("}")[0]
+        self.assertEqual(geo.split(), ["default", "0;", "1.2.3.4", "1;", "8.8.8.8", "1;"])
+
+        self.env.ref("runbot_ux.ir_cron_clear_trusted_ips").method_direct_trigger()
+        self.assertNotIn("8.8.8.8", self._render(self.Build))
+
     def test_live_build_blocks_code_writes(self):
         build = self.Build.create({"params_id": self.base_params.id, "port": 2000, "host": "runbot.example.com"})
         conf = self._render(build)
         self.assertIn("if ($runbot_trusted = 0) { return 418; }", conf)
         self.assertIn("proxy_pass http://127.0.0.1:2000;", conf)
+
+
+@tagged("-at_install", "post_install")
+class TestTrustedIpPage(HttpCase):
+    def test_only_public_ips_can_be_trusted(self):
+        self.authenticate("admin", "admin")
+        for ip in ("1.2.3.4; 0.0.0.0/0", "127.0.0.1", "10.0.0.1", "8.8.8.8"):
+            self.url_open("/runbot/trusted_ip", data={"ip": ip, "csrf_token": http.Request.csrf_token(self)})
+        self.assertEqual(self.env["ir.config_parameter"].sudo().get_param("runbot_ux.trusted_ips_today"), "8.8.8.8")
+        self.assertEqual(
+            self.env["ir.logging"].search([("message", "like", "trusted IP")]).mapped("message"),
+            ["admin trusted IP 8.8.8.8 for today"],
+        )
