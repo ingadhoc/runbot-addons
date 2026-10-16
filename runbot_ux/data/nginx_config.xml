@@ -13,7 +13,7 @@ geo $runbot_trusted {
 }
         </xpath>
         <xpath expr="//t[@id='build_anchor']" position="after">
-    location ~ ^/web/dataset/call_kw/(ir\.actions\.server|ir\.cron|base\.automation|ir\.model(\.fields)?|base\.import\.module)/(web_save|create|write|copy) {
+    location ~* ^/web/dataset/call_kw(/?$|/(ir\.actions\.server|ir\.cron|base\.automation|ir\.model(\.fields)?|base\.import\.module)(/(web_save|create|write|copy)|/?$)) {
       error_page 418 = @runbot_denied;
       if ($runbot_trusted = 0) { return 418; }
       proxy_pass http://127.0.0.1:<t t-out="build.port"/>;
