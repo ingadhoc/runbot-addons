@@ -1,6 +1,7 @@
 import re
 
 from odoo.addons.runbot.tests.common import RunbotCase
+from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 
 
@@ -31,6 +32,20 @@ class TestNginxConfig(RunbotCase):
         conf = self._render(self.Build)
         geo = conf.split("geo $runbot_trusted {")[1].split("}")[0]
         self.assertEqual(geo.split(), ["default", "0;"])
+
+    def test_ips_trusted_for_the_day(self):
+        self.env["ir.config_parameter"].sudo().set_param("runbot_ux.trusted_ips", "1.2.3.4")
+        self.env["runbot.trusted.ip"].create([{"ip": "1.2.3.4"}, {"ip": "8.8.8.8"}])
+        geo = self._render(self.Build).split("geo $runbot_trusted {")[1].split("}")[0]
+        self.assertEqual(geo.split(), ["default", "0;", "1.2.3.4", "1;", "8.8.8.8", "1;"])
+
+        self.env["runbot.trusted.ip"]._cron_clear()
+        self.assertNotIn("8.8.8.8", self._render(self.Build))
+
+    def test_only_public_ips_can_be_trusted(self):
+        for ip in ("1.2.3.4; 0.0.0.0/0", "127.0.0.1", "10.0.0.1"):
+            with self.subTest(ip=ip), self.assertRaises(ValidationError):
+                self.env["runbot.trusted.ip"].create({"ip": ip})
 
     def test_live_build_blocks_code_writes(self):
         build = self.Build.create({"params_id": self.base_params.id, "port": 2000, "host": "runbot.example.com"})
