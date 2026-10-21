@@ -49,6 +49,12 @@ class TestNginxConfig(RunbotCase):
         self.assertIn("if ($runbot_trusted = 0) { return 418; }", conf)
         self.assertIn("proxy_pass http://127.0.0.1:2000;", conf)
 
+    def test_short_link_redirects_to_https(self):
+        build = self.Build.create({"params_id": self.base_params.id, "port": 2000, "host": "runbot.example.com"})
+        server = next(block for block in self._render(build).split("server {") if "return 307" in block)
+        returns = [line.strip() for line in server.splitlines() if line.strip().startswith("return 307")]
+        self.assertTrue(returns[0].startswith("return 307 https://"), returns)
+
 
 @tagged("-at_install", "post_install")
 class TestTrustedIpPage(HttpCase):
