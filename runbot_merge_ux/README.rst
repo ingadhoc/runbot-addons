@@ -55,6 +55,24 @@ If an automatic version bump fails:
 
     @mergebot bumped
 
+Squashing fixup commits
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Fixes asked in a review can be pushed as ``fixup!`` or ``squash!`` commits, so
+the reviewer sees only what changed. To merge with ``rebase-ff`` and squash each
+of them into the commit it fixes::
+
+    @mergebot rebase-autosquash
+
+As with ``git rebase --autosquash``, a ``fixup!`` commit drops its message and a
+``squash!`` commit adds its body, without the subject, to the message of the
+commit it fixes.
+
+The squash also applies to the forward-ports. If one of these commits does not
+match a previous commit of the PR, or conflicts when moved next to it, the
+staging fails and the history has to be squashed by hand with
+``git rebase -i --autosquash``.
+
 Version Format
 --------------
 
