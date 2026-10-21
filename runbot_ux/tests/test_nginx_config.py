@@ -55,6 +55,14 @@ class TestNginxConfig(RunbotCase):
         returns = [line.strip() for line in server.splitlines() if line.strip().startswith("return 307")]
         self.assertTrue(returns[0].startswith("return 307 https://"), returns)
 
+    def test_build_menu_links_use_https(self):
+        arch = self.env.ref("runbot.build_menu")._get_combined_arch()
+        hrefs = [node.get("t-attf-href", "") for node in arch.iter("a")]
+        self.assertFalse([href for href in hrefs if "/web/database/selector" in href])
+        self.assertEqual(
+            arch.xpath("//t[@t-set='log_url']")[0].get("t-value"), "'https://%s' % bu.host if bu.host != fqdn else ''"
+        )
+
 
 @tagged("-at_install", "post_install")
 class TestTrustedIpPage(HttpCase):

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="build_menu_https" inherit_id="runbot.build_menu">
+        <!-- The host nginx and Cloudflare block /web/database -->
+        <xpath expr="//a[contains(@t-attf-href, '/web/database/selector')]" position="replace"/>
+        <xpath expr="//t[@t-set='log_url']" position="attributes">
+            <attribute name="t-value">'https://%s' % bu.host if bu.host != fqdn else ''</attribute>
+        </xpath>
+    </template>
+</odoo>
