@@ -17,11 +17,14 @@ from markupsafe import Markup
 from odoo import fields, models
 from odoo.addons.runbot_merge import git
 
+from ..autosquash import squash_fixups
+
 _logger = logging.getLogger(__name__)
 
 VERSION_RE = re.compile(r"^(?P<series>\d+\.\d+)\.(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$")
 MANIFEST_VERSION_RE = re.compile(r"(?P<pre>[\"']version[\"']\s*:\s*[\"'])(?P<version>[\d\.]+)(?P<post>[\"'])")
 MANIFEST_NAME = "__manifest__.py"
+AUTOSQUASH_COMMAND_RE = re.compile(r"\brebase-autosquash\b", re.IGNORECASE)
 BUMP_COMMAND_RE = re.compile(r"\b(?P<policy>(?:no)?bump(?:-major)?)(?:=(?P<modules>[\w,]+))?\b", re.IGNORECASE)
 
 
@@ -64,6 +67,10 @@ class PullRequests(models.Model):
         tracking=True,
     )
     bump_warned = fields.Boolean(default=False)
+    autosquash = fields.Boolean(
+        tracking=True,
+        help="Squash the fixup! and squash! commits into the commit they fix when merging with rebase-ff.",
+    )
     bump_status = fields.Selection(
         [
             ("success", "Bump Success"),
@@ -81,13 +88,21 @@ class PullRequests(models.Model):
         bump_setting = None
         bump_modules = None
         bump_done = False
+        autosquash = False
 
         for line in project._find_commands(body):
+            if AUTOSQUASH_COMMAND_RE.search(line):
+                autosquash = True
             if match := BUMP_COMMAND_RE.search(line):
                 bump_setting = match.group("policy").lower()
                 bump_modules = match.group("modules")
             elif re.search(r"\bbumped\b", line, flags=re.IGNORECASE):
                 bump_done = True
+
+        if autosquash:
+            # the base parser applies rebase-ff with its own ACL and feedback
+            body = AUTOSQUASH_COMMAND_RE.sub("rebase-ff", body)
+            comment["body"] = body
 
         if bump_setting:
             # Validate specific modules if provided
@@ -107,7 +122,7 @@ class PullRequests(models.Model):
                         format_args={"pr": self, "invalid_modules": invalid_list},
                     )
                     comment["body"] = BUMP_COMMAND_RE.sub("", body)
-                    return super()._parse_commands(author, comment, login)
+                    return self._parse_base_commands(author, comment, login, autosquash)
 
             if self.bump_policy != bump_setting or self.bump_modules != bump_modules:
                 self.bump_policy = bump_setting
@@ -129,7 +144,25 @@ class PullRequests(models.Model):
             body = re.sub(r"\bbumped\b", "", body, flags=re.IGNORECASE)
             comment["body"] = body
 
-        return super()._parse_commands(author, comment, login)
+        return self._parse_base_commands(author, comment, login, autosquash)
+
+    def _parse_base_commands(self, author, comment, login, autosquash):
+        result = super()._parse_commands(author, comment, login)
+        if autosquash and result.startswith("applied") and self.merge_method == "rebase-ff":
+            self.autosquash = True
+        return result
+
+    def write(self, vals):
+        # any other merge method drops the autosquash
+        if "merge_method" in vals and "autosquash" not in vals:
+            vals = {**vals, "autosquash": False}
+        return super().write(vals)
+
+    def _cherry_pick(self, repo, branch, head):
+        new_head, count = super()._cherry_pick(repo, branch, head)
+        if self.autosquash:
+            new_head, _, count = squash_fixups(repo, head, new_head)
+        return new_head, count
 
     def _get_modified_modules_names(self):
         """Get the set of module names modified in this PR using GitHub API."""

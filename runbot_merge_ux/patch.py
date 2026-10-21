@@ -3,10 +3,13 @@
 # directory
 ##############################################################################
 
+import json
 import logging
 
 from odoo.addons.runbot_merge import exceptions
 from odoo.addons.runbot_merge.models import stagings_create
+
+from .autosquash import fold_squash_messages, group_fixups, squash_fixups
 
 _logger = logging.getLogger(__name__)
 
@@ -33,7 +36,28 @@ def stage_with_bump_validation(pr, info, related_prs=()):
     return _original_stage(pr, info, related_prs)
 
 
+_original_stage_rebase_ff = stagings_create.stage_rebase_ff
+
+
+def stage_rebase_ff(pr, info, commits, related_prs):
+    if not pr.autosquash:
+        return _original_stage_rebase_ff(pr, info, commits, related_prs=related_prs)
+
+    # fold the squash! messages before the mergebot adds its references, and
+    # put the "closes" footer on the commit that ends up last, not on a fixup
+    groups = group_fixups(commits)
+    fold_squash_messages(groups)
+    stagings_create.add_self_references(pr, commits, related_prs=related_prs, merge=groups[-1][0])
+    rebased, rebase_map = info.repo.rebase(info.head, commits=commits)
+    head, squash_map, _ = squash_fixups(
+        info.repo, info.head, rebased, original_shas={new: sha for sha, new in rebase_map.items()}
+    )
+    pr.commits_map = json.dumps({**{sha: squash_map[new] for sha, new in rebase_map.items()}, "": head})
+    return head
+
+
 def post_load():
     # Replace the original stage function
     stagings_create.stage = stage_with_bump_validation
+    stagings_create.stage_rebase_ff = stage_rebase_ff
     _logger.info("Bump policy monkey patch applied successfully via post_load!")
