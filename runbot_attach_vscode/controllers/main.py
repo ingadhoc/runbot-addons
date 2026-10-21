@@ -69,21 +69,11 @@ class VsCodeController(http.Controller):
         request.env["runbot.runbot"].sudo()._reload_nginx()
         exp = int(time.time()) + TOKEN_TTL_SECONDS
         token = request.env["runbot.token.signer"]._make_token(build.id, request.env.user.id, exp)
-        response = request.redirect(build._vscode_session_url(session), code=302, local=False)
-        # This token proves who the user is. We hand it out here (on Odoo's
-        # host) but nginx checks it on the VS Code subdomain, so we tie it to
-        # build.host to make the browser send it to both.
-        response.set_cookie(
-            self._cookie_name(build.id),
-            token,
-            max_age=TOKEN_TTL_SECONDS,
-            domain=build.host,
-            secure=True,
-            httponly=True,
-            samesite="Lax",
-            path="/",
-        )
-        return response
+        # Odoo may be served on another domain than build.host, so it cannot set
+        # a cookie for the VS Code address: nginx sets it there (see
+        # views/runbot_nginx.xml).
+        url = f"{build._vscode_session_url(session)}/__vscode_login?token={token}"
+        return request.redirect(url, code=302, local=False)
 
     @http.route(
         ["/runbot/vscode/auth_check"],

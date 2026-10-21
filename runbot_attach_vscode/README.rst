@@ -49,8 +49,9 @@ How to use
 #. Rebuild the image and wake a build. *Open VS Code* (in the build's
    action menu or form header) opens a new tab on
    ``/runbot/vscode/<build_id>``, which starts the caller's session
-   container, sets a short-lived auth cookie, and bounces to
-   ``<scheme>://<dest>-vscode-<user_key>.<host>``.
+   container and bounces to
+   ``<scheme>://<dest>-vscode-<user_key>.<host>`` with a short-lived
+   access token.
 
 How it works at run time
 ========================
@@ -72,9 +73,11 @@ itself, so it hands off to the controller). The route:
    reach their services). If the container is already up, nothing happens.
 #. Creates a signed access token — it carries the build id, the user id
    and an expiry, signed with the database secret so it cannot be forged —
-   and stores it in the browser. The token is tied to ``<host>`` so the
-   browser sends it both to Odoo and to the VS Code address.
-#. Sends the browser to the user's VS Code address.
+   and puts it in the redirect URL.
+#. Sends the browser to ``/__vscode_login?token=...`` on the user's VS
+   Code address. nginx stores the token in a cookie for that address and
+   redirects to ``/``. Odoo cannot set that cookie itself, because it may
+   be served on another domain than ``<host>``.
 
 A small addition to ``runbot.nginx_config`` creates one nginx block for
 each running session, matching ``<dest>-vscode-<user_key>.<host>`` and
