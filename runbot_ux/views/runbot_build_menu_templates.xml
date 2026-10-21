@@ -4,7 +4,7 @@
         <!-- The host nginx and Cloudflare block /web/database -->
         <xpath expr="//a[contains(@t-attf-href, '/web/database/selector')]" position="replace"/>
         <xpath expr="//a[contains(@t-attf-href, '/logs/#{log_name}.txt')]" position="attributes">
-            <attribute name="t-attf-href">{{bu._http_log_url()}}{{log_name}}.txt</attribute>
+            <attribute name="t-attf-href">{{bu.sudo()._http_log_url()}}{{log_name}}.txt</attribute>
         </xpath>
     </template>
 </odoo>
