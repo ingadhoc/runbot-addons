@@ -49,6 +49,28 @@ class TestNginxConfig(RunbotCase):
         self.assertIn("if ($runbot_trusted = 0) { return 418; }", conf)
         self.assertIn("proxy_pass http://127.0.0.1:2000;", conf)
 
+    def test_short_link_keeps_the_client_scheme(self):
+        build = self.Build.create({"params_id": self.base_params.id, "port": 2000, "host": "runbot.example.com"})
+        server = next(block for block in self._render(build).split("server {") if "return 307" in block)
+        returns = [line.strip() for line in server.splitlines() if line.strip().startswith("return 307")]
+        self.assertTrue(returns[0].startswith("return 307 $real_scheme://"), returns)
+
+    def test_build_menu_links(self):
+        build = self.Build.create(
+            {
+                "params_id": self.base_params.id,
+                "host": "runbot.example.com",
+                "local_state": "running",
+                "log_list": "run",
+            }
+        )
+        menu = str(
+            self.env["ir.ui.view"]._render_template("runbot.build_menu", {"bu": build, "fqdn": "frontend.example.com"})
+        )
+        self.assertIn('href="%srun.txt"' % build._http_log_url(), menu)
+        self.assertTrue(build._http_log_url().startswith("https://runbot.example.com/"))
+        self.assertNotIn("/web/database/selector", menu)
+
 
 @tagged("-at_install", "post_install")
 class TestTrustedIpPage(HttpCase):

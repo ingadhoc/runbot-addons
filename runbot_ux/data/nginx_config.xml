@@ -24,4 +24,11 @@ geo $runbot_trusted {
     }
         </xpath>
     </template>
+
+    <!-- Keep the scheme the client used; the first return wins, so the core http one is never reached -->
+    <template id="nginx_config_https_redirect" inherit_id="runbot.nginx_config" priority="20">
+        <xpath expr="//t[@id='build_anchor_authenticated_side_effect']" position="after">
+    return 307 $real_scheme://<t t-out="build.dest"/>$1.<t t-out="build.host"/>;
+        </xpath>
+    </template>
 </odoo>
