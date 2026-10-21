@@ -2,7 +2,7 @@ import re
 
 from odoo import http
 from odoo.addons.runbot.tests.common import RunbotCase
-from odoo.tests import HttpCase, tagged
+from odoo.tests import HttpCase, new_test_user, tagged
 
 
 @tagged("-at_install", "post_install")
@@ -64,8 +64,12 @@ class TestNginxConfig(RunbotCase):
                 "log_list": "run",
             }
         )
+        # The frontend renders the menu as a plain internal user, without access to system parameters
+        user = new_test_user(self.env, login="runbot_menu_viewer", groups="base.group_user")
         menu = str(
-            self.env["ir.ui.view"]._render_template("runbot.build_menu", {"bu": build, "fqdn": "frontend.example.com"})
+            self.env["ir.ui.view"]
+            .with_user(user)
+            ._render_template("runbot.build_menu", {"bu": build.with_user(user), "fqdn": "frontend.example.com"})
         )
         self.assertIn('href="%srun.txt"' % build._http_log_url(), menu)
         self.assertTrue(build._http_log_url().startswith("https://runbot.example.com/"))
