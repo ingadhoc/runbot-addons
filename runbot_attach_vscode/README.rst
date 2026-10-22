@@ -149,11 +149,12 @@ versions automatically.
 Limitations
 ===========
 
-* **Single-host runbot only.** Opening a session reloads nginx on the host
-  serving the request, which only renders blocks for builds on that same
-  host. On a multi-host runbot the session block would land on the wrong
-  host and the redirect would miss. This needs revisiting before running on
-  a multi-host setup.
+* **Single-host runbot only.** Opening a session reloads nginx from the web
+  process, which only renders blocks for builds of its own host name. The
+  web process must run with the same ``forced_host_name`` as the builder;
+  otherwise it writes an nginx config without builds. On a multi-host
+  runbot the session block would land on the wrong host. This needs
+  revisiting before running on a multi-host setup.
 
 Credits
 =======

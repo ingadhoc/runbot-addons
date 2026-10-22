@@ -1,6 +1,8 @@
 import logging
 import time
+from urllib.parse import urlsplit
 
+import requests
 from odoo import _, http
 from odoo.exceptions import UserError
 from odoo.http import Response, request
@@ -60,20 +62,40 @@ class VsCodeController(http.Controller):
                 "http_routing.http_error",
                 {"status_code": _("VS Code"), "status_message": exc.args[0]},
             )
-        # Reload nginx now so the new server block is live before the 302
-        # fires; otherwise the request races the scheduler cycle and falls
-        # through to the build's Odoo.
-        # Assumes a single-host runbot: _reload_nginx only renders blocks for
-        # builds on the host serving this request, so on a multi-host setup the
-        # block would land on the wrong host. Revisit if runbot becomes multi-host.
+        # Reload nginx now instead of waiting for the builder's next cycle.
+        # _reload_nginx only renders builds of this process's host name, so the
+        # web process must run with the same forced_host_name as the builder.
         request.env["runbot.runbot"].sudo()._reload_nginx()
+        session_url = build._vscode_session_url(session)
+        self._wait_for_nginx(session_url)
         exp = int(time.time()) + TOKEN_TTL_SECONDS
         token = request.env["runbot.token.signer"]._make_token(build.id, request.env.user.id, exp)
         # Odoo may be served on another domain than build.host, so it cannot set
         # a cookie for the VS Code address: nginx sets it there (see
         # views/runbot_nginx.xml).
-        url = f"{build._vscode_session_url(session)}/__vscode_login?token={token}"
-        return request.redirect(url, code=302, local=False)
+        return request.redirect(f"{session_url}/__vscode_login?token={token}", code=302, local=False)
+
+    @staticmethod
+    def _wait_for_nginx(session_url, timeout=5):
+        """Wait until nginx serves the session's block. The reload is not
+        instant, and until then the build's Odoo answers the address. Only
+        the session's block answers 400 to /__vscode_login without a token."""
+        host = urlsplit(session_url).netloc
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                response = requests.get(
+                    "http://127.0.0.1:8080/__vscode_login",
+                    headers={"Host": host},
+                    allow_redirects=False,
+                    timeout=1,
+                )
+                if response.status_code == 400:
+                    return
+            except requests.RequestException:
+                pass
+            time.sleep(0.2)
+        _logger.warning("nginx did not serve %s after %ss", host, timeout)
 
     @http.route(
         ["/runbot/vscode/auth_check"],
