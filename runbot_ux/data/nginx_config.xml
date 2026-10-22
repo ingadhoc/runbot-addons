@@ -20,7 +20,7 @@ geo $runbot_trusted {
     }
     location @runbot_denied {
       default_type application/json;
-      return 200 '{"jsonrpc": "2.0", "id": 0, "error": {"code": 200, "message": "Runbot Error", "data": {"name": "odoo.exceptions.UserError", "debug": "", "message": "Access denied from your location - internal users can trust their IP for today at <t t-out="base_url"/>/runbot/trusted_ip", "arguments": ["Access denied from your location - internal users can trust their IP for today at <t t-out="base_url"/>/runbot/trusted_ip"], "context": {}}}}';
+      return 200 '{"jsonrpc": "2.0", "id": 0, "error": {"code": 200, "message": "Runbot Error", "data": {"name": "odoo.exceptions.UserError", "debug": "", "message": "Access denied from your location - please get in touch with the Runbot team or use a development database", "arguments": ["Access denied from your location - please get in touch with the Runbot team or use a development database"], "context": {}}}}';
     }
         </xpath>
     </template>
