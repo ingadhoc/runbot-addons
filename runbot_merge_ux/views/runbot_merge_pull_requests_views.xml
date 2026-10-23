@@ -17,6 +17,7 @@
                     <field name="bump_policy"/>
                     <field name="bump_modules"/>
                     <field name="bump_status"/>
+                    <field name="autosquash"/>
                 </group>
             </page>
         </field>
