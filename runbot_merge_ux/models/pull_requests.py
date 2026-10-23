@@ -150,6 +150,17 @@ class PullRequests(models.Model):
         result = super()._parse_commands(author, comment, login)
         if autosquash and result.startswith("applied") and self.merge_method == "rebase-ff":
             self.autosquash = True
+            # say the real method in the reply the base parser just queued
+            template = self.env.ref("runbot_merge.command.method")
+            rebase_ff = dict(self._fields["merge_method"].selection)["rebase-ff"]
+            self.env["runbot_merge.pull_requests.feedback"].search(
+                [
+                    ("repository", "=", self.repository.id),
+                    ("pull_request", "=", self.number),
+                    ("message", "=", template._format(new_method=rebase_ff)),
+                    ("create_date", "=", self.env.cr.now()),
+                ]
+            ).message = template._format(new_method=f"{rebase_ff}, squashing the fixup! and squash! commits")
         return result
 
     def write(self, vals):
@@ -161,7 +172,11 @@ class PullRequests(models.Model):
     def _cherry_pick(self, repo, branch, head):
         new_head, count = super()._cherry_pick(repo, branch, head)
         if self.autosquash:
-            new_head, _, count = squash_fixups(repo, head, new_head)
+            # the forward-port goes out anyway, with the fixup! commits if they do not squash
+            try:
+                new_head, _, count = squash_fixups(repo, head, new_head)
+            except git.MergeError as e:
+                _logger.warning("%s: forward-port keeps the fixup! commits: %s", self.display_name, e)
         return new_head, count
 
     def _get_modified_modules_names(self):
