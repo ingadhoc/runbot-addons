@@ -12,7 +12,8 @@ SQUASH_PREFIX = "squash! "
 
 
 def _subject(commit):
-    return commit["commit"]["message"].split("\n", 1)[0].strip()
+    # like git: the first paragraph, its lines joined with a space
+    return " ".join(commit["commit"]["message"].strip().split("\n\n", 1)[0].splitlines())
 
 
 def _squash_message(target, squashes):
@@ -104,17 +105,24 @@ def squash_fixups(repo, base, head, original_shas=None):
                 in_order = False
                 try:
                     tree = check(r.merge_tree("--merge-base", commit["parent"], current, commit["sha"]))
-                except MergeError:
+                except MergeError as e:
                     sha, target_sha = (original_shas.get(c["sha"], c["sha"]) for c in (commit, group[0]))
+                    # keep git's error: stage() looks for it to retry without mergiraf
                     raise MergeError(
                         f"{sha} ({_subject(commit)}) conflicts when squashed into {target_sha},"
-                        " run `git rebase -i --autosquash` and push."
+                        f" run `git rebase -i --autosquash` and push.\n\n{e}"
                     ) from None
                 tree = tree.stdout.splitlines()[0]
             current = check(r.commit_tree(tree=tree, parents=[current], message="temp autosquash")).stdout.strip()
             last = commit["sha"]
 
         first = group[0]
+        # like the base rebase: allow empty commits, but not ones emptied by the squash
+        if len(group) > 1 and tree == r.get_tree(new_head):
+            raise MergeError(
+                f"{original_shas.get(first['sha'], first['sha'])} ({_subject(first)}) results in an empty"
+                " commit once its fixup! commits are squashed, remove it and push."
+            )
         message = first["commit"]["message"]
         if squashes := [c for c in group[1:] if _subject(c).startswith(SQUASH_PREFIX)]:
             message = _squash_message(first, squashes)
