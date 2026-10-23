@@ -39,9 +39,9 @@ class VsCodeController(http.Controller):
         sitemap=False,
     )
     def open_vscode(self, build_id):
-        """Find or create the user's session, start its container, set the
-        access token on Odoo's domain, and send the browser to the user's
-        personal VS Code address."""
+        """Find or create the user's session, start its container, and send
+        the browser to the user's personal VS Code address with an access
+        token, which nginx stores there as a cookie."""
         if not request.env.user._is_internal():
             return request.not_found()
         build = request.env["runbot.build"].browse(build_id).sudo()
@@ -67,7 +67,14 @@ class VsCodeController(http.Controller):
         # web process must run with the same forced_host_name as the builder.
         request.env["runbot.runbot"].sudo()._reload_nginx()
         session_url = build._vscode_session_url(session)
-        self._wait_for_nginx(session_url)
+        if not self._wait_for_nginx(session_url):
+            return request.render(
+                "http_routing.http_error",
+                {
+                    "status_code": _("VS Code"),
+                    "status_message": _("VS Code is not ready yet. Try again in a few seconds."),
+                },
+            )
         exp = int(time.time()) + TOKEN_TTL_SECONDS
         token = request.env["runbot.token.signer"]._make_token(build.id, request.env.user.id, exp)
         # Odoo may be served on another domain than build.host, so it cannot set
@@ -77,9 +84,10 @@ class VsCodeController(http.Controller):
 
     @staticmethod
     def _wait_for_nginx(session_url, timeout=5):
-        """Wait until nginx serves the session's block. The reload is not
-        instant, and until then the build's Odoo answers the address. Only
-        the session's block answers 400 to /__vscode_login without a token."""
+        """Wait until nginx serves the session's block; return False if it
+        does not within `timeout`. The reload is not instant, and until then
+        the build's Odoo answers the address. Only the session's block
+        answers 400 to /__vscode_login without a token."""
         host = urlsplit(session_url).netloc
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -91,11 +99,12 @@ class VsCodeController(http.Controller):
                     timeout=1,
                 )
                 if response.status_code == 400:
-                    return
+                    return True
             except requests.RequestException:
                 pass
             time.sleep(0.2)
         _logger.warning("nginx did not serve %s after %ss", host, timeout)
+        return False
 
     @http.route(
         ["/runbot/vscode/auth_check"],
