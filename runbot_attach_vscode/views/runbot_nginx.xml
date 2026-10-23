@@ -41,6 +41,13 @@ server {
         proxy_set_header X-Forwarded-Proto $real_scheme;
     }
 
+    location = /__vscode_login {
+        access_log off;
+        if ($arg_token !~ "^[A-Za-z0-9_.-]+$") { return 400; }
+        add_header Set-Cookie "vscode_token_<t t-out="build.id"/>=$arg_token; Path=/; Secure; HttpOnly; SameSite=Lax";
+        return 302 $real_scheme://$host/;
+    }
+
     location @vscode_login_redirect {
         return 302 $real_scheme://<t t-out="build.host"/>/runbot/vscode/<t t-out="build.id"/>;
     }
