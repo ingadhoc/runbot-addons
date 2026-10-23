@@ -69,8 +69,8 @@ As with ``git rebase --autosquash``, a ``fixup!`` commit drops its message and a
 commit it fixes.
 
 The squash also applies to the forward-ports. If one of these commits does not
-match a previous commit of the PR, or conflicts when moved next to it, the
-staging fails and the history has to be squashed by hand with
+match a previous commit of the PR, conflicts when moved next to it, or leaves
+it empty, the staging fails and the history has to be squashed by hand with
 ``git rebase -i --autosquash``.
 
 Version Format

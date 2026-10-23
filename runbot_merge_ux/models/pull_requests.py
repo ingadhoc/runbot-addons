@@ -14,7 +14,7 @@ import tempfile
 
 import requests
 from markupsafe import Markup
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.addons.runbot_merge import git
 
 from ..autosquash import squash_fixups
@@ -153,15 +153,25 @@ class PullRequests(models.Model):
             # say the real method in the reply the base parser just queued
             template = self.env.ref("runbot_merge.command.method")
             rebase_ff = dict(self._fields["merge_method"].selection)["rebase-ff"]
+            # same arguments as the base parser, in case the template uses them
+            args = {"pr": self, "user": author.github_login if author else login}
             self.env["runbot_merge.pull_requests.feedback"].search(
                 [
                     ("repository", "=", self.repository.id),
                     ("pull_request", "=", self.number),
-                    ("message", "=", template._format(new_method=rebase_ff)),
+                    ("message", "=", template._format(new_method=rebase_ff, **args)),
                     ("create_date", "=", self.env.cr.now()),
                 ]
-            ).message = template._format(new_method=f"{rebase_ff}, squashing the fixup! and squash! commits")
+            ).message = template._format(new_method=f"{rebase_ff}, squashing the fixup! and squash! commits", **args)
         return result
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            # a forward-port squashes like its source, also the fixup! commits the port could not squash
+            if vals.get("source_id") and "autosquash" not in vals:
+                vals["autosquash"] = self.browse(vals["source_id"]).autosquash
+        return super().create(vals_list)
 
     def write(self, vals):
         # any other merge method drops the autosquash
