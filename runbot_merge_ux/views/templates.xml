@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="view_pull_request_info_open" inherit_id="runbot_merge.view_pull_request_info_open">
+        <xpath expr="//li[@t-att-class=&quot;'ok' if pr.squash or pr.merge_method else 'fail'&quot;]" position="inside">
+            <t t-if="pr.autosquash and pr.merge_method == 'rebase-ff'">: rebase-autosquash</t>
+        </xpath>
         <xpath expr="//li[@t-att-class=&quot;'ok' if pr._approved else 'fail'&quot;]" position="after">
             <li t-att-class="'ok' if pr.bump_policy else 'fail'">
                 Bump policy
