@@ -16,6 +16,10 @@ def _subject(commit):
     return " ".join(commit["commit"]["message"].strip().split("\n\n", 1)[0].splitlines())
 
 
+def has_fixups(commits):
+    return any(_subject(c).startswith((FIXUP_PREFIX, SQUASH_PREFIX)) for c in commits)
+
+
 def _squash_message(target, squashes):
     """Message of ``target`` followed by the body of each ``squash!`` commit,
     without its subject, as ``git rebase --autosquash`` does.
