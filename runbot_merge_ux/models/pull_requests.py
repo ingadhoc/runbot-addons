@@ -174,8 +174,8 @@ class PullRequests(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
-        # any other merge method drops the autosquash
-        if "merge_method" in vals and "autosquash" not in vals:
+        # any other merge method drops the autosquash, also the one the base resets on a single commit
+        if ("merge_method" in vals or vals.get("squash")) and "autosquash" not in vals:
             vals = {**vals, "autosquash": False}
         return super().write(vals)
 
