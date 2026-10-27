@@ -17,7 +17,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.addons.runbot_merge import git
 
-from ..autosquash import squash_fixups
+from ..autosquash import has_fixups, squash_fixups
 
 _logger = logging.getLogger(__name__)
 
@@ -178,6 +178,27 @@ class PullRequests(models.Model):
         if ("merge_method" in vals or vals.get("squash")) and "autosquash" not in vals:
             vals = {**vals, "autosquash": False}
         return super().write(vals)
+
+    def _default_autosquash(self, commits=None):
+        """Merge with rebase-autosquash the multi-commit PRs without a merge
+        method that have fixup! or squash! commits.
+        """
+        for pr in self.filtered(lambda p: not (p.squash or p.merge_method)):
+            if has_fixups(commits if commits is not None else pr.repository.github().commits(pr.number)):
+                pr.write({"merge_method": "rebase-ff", "autosquash": True})
+
+    def _check_merge_method_configuration(self, commit=False):
+        # same PRs the base cron warns about, so they are not warned
+        self.search(
+            [
+                ("state", "in", ("approved", "ready")),
+                ("staging_id", "=", False),
+                ("squash", "=", False),
+                ("merge_method", "=", False),
+                ("method_warned", "=", False),
+            ]
+        )._default_autosquash()
+        return super()._check_merge_method_configuration(commit=commit)
 
     def _cherry_pick(self, repo, branch, head):
         new_head, count = super()._cherry_pick(repo, branch, head)

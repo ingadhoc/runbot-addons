@@ -68,6 +68,10 @@ As with ``git rebase --autosquash``, a ``fixup!`` commit drops its message and a
 ``squash!`` commit adds its body, without the subject, to the message of the
 commit it fixes.
 
+A PR of several commits without a merge method that has ``fixup!`` or
+``squash!`` commits is merged this way by default. Without them, the mergebot
+still asks for a merge method.
+
 The squash also applies to the forward-ports. If one of these commits does not
 match a previous commit of the PR, conflicts when moved next to it, or leaves
 it empty, the staging fails and the history has to be squashed by hand with

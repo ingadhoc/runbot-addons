@@ -56,8 +56,19 @@ def stage_rebase_ff(pr, info, commits, related_prs):
     return head
 
 
+_original_validate_pr = stagings_create.validate_pr
+
+
+def validate_pr(pr, info):
+    # also the fixup! commits pushed after the missing merge method warning
+    if not (pr.squash or pr.merge_method):
+        pr._default_autosquash(info.gh.commits(pr.number))
+    return _original_validate_pr(pr, info)
+
+
 def post_load():
     # Replace the original stage function
     stagings_create.stage = stage_with_bump_validation
     stagings_create.stage_rebase_ff = stage_rebase_ff
-    _logger.info("runbot_merge_ux patches applied (bump policy validation, rebase-autosquash)")
+    stagings_create.validate_pr = validate_pr
+    _logger.info("runbot_merge_ux patches applied (bump policy validation, rebase-autosquash, default autosquash)")
