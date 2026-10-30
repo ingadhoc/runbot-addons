@@ -109,15 +109,14 @@ def render_full_table_with_bump_policy(pr, branches, repos, batches):
                         # Standard validations
                         lines.extend([
                             Line([
-                                boxes[CheckValue.SUCCESS if pr.squash or pr.merge_method else CheckValue.FAILURE],
+                                boxes[CheckValue.SUCCESS if pr.squash or pr.merge_method or pr.single_after_autosquash else CheckValue.FAILURE],
                                 Text(
                                     "merge method: {}".format(
-                                        'single' if pr.squash
-                                        else ('rebase-autosquash' if pr.autosquash and pr.merge_method == 'rebase-ff' else pr.merge_method)
-                                        or 'missing'
+                                        'single' if pr.squash or pr.single_after_autosquash
+                                        else pr.merge_method or 'missing'
                                     ),
                                     font,
-                                    foreground if pr.squash or pr.merge_method else error,
+                                    foreground if pr.squash or pr.merge_method or pr.single_after_autosquash else error,
                                 ),
                             ]),
                             Line([
