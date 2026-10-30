@@ -59,19 +59,23 @@ Squashing fixup commits
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 Fixes asked in a review can be pushed as ``fixup!`` or ``squash!`` commits, so
-the reviewer sees only what changed. To merge with ``rebase-ff`` and squash each
-of them into the commit it fixes::
+the reviewer sees only what changed. The mergebot squashes each of them into the
+commit it fixes when it merges with ``rebase-ff`` or ``rebase-merge``, and in the
+forward-ports. ``merge`` keeps the commits as they are, so a PR with these
+commits fails to merge with it.
 
-    @mergebot rebase-autosquash
+A PR of several commits that squash to a single one is merged with ``rebase-ff``,
+without asking for a merge method. If more than one commit is left, the mergebot
+asks for a merge method as usual.
 
 As with ``git rebase --autosquash``, a ``fixup!`` commit drops its message and a
 ``squash!`` commit adds its body, without the subject, to the message of the
 commit it fixes.
 
-The squash also applies to the forward-ports. If one of these commits does not
-match a previous commit of the PR, conflicts when moved next to it, or leaves
-it empty, the staging fails and the history has to be squashed by hand with
-``git rebase -i --autosquash``.
+If one of these commits does not match a previous commit of the PR, conflicts
+when moved next to it, or leaves it empty, the staging fails and the history has
+to be squashed by hand with ``git rebase -i --autosquash``. In a forward-port,
+the commits that do not squash are kept as they are.
 
 Version Format
 --------------
