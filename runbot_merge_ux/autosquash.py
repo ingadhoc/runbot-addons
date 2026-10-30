@@ -16,6 +16,28 @@ def _subject(commit):
     return " ".join(commit["commit"]["message"].strip().split("\n\n", 1)[0].splitlines())
 
 
+def has_autosquash_commits(commits):
+    return any(_subject(c).startswith((FIXUP_PREFIX, SQUASH_PREFIX)) for c in commits)
+
+
+def count_after_autosquash(commits):
+    """Number of commits left once the ``fixup!`` and ``squash!`` commits are
+    squashed into the commit they fix.
+    """
+    try:
+        return len(group_autosquash(commits))
+    except MergeError:
+        # the staging reports the commit that does not match
+        return len(commits)
+
+
+def single_after_autosquash(commits):
+    """Whether the PR is a single commit once its ``fixup!`` and ``squash!``
+    commits are squashed. A PR of one commit is not: the base handles it.
+    """
+    return len(commits) > 1 and count_after_autosquash(commits) == 1
+
+
 def _squash_message(target, squashes):
     """Message of ``target`` followed by the body of each ``squash!`` commit,
     without its subject, as ``git rebase --autosquash`` does.
@@ -43,7 +65,7 @@ def fold_squash_messages(groups):
                 commit["commit"]["message"] = FIXUP_PREFIX + _subject(commit)[len(SQUASH_PREFIX) :]
 
 
-def group_fixups(commits):
+def group_autosquash(commits):
     """Groups ``commits`` (oldest first) in autosquash order: each ``fixup!``
     or ``squash!`` commit goes right after the commit it fixes.
     """
@@ -62,7 +84,7 @@ def group_fixups(commits):
     return groups
 
 
-def squash_fixups(repo, base, head, original_shas=None):
+def autosquash_range(repo, base, head, original_shas=None):
     """Squashes the ``fixup!`` and ``squash!`` commits of the linear history
     ``base..head`` into the commit they fix.
 
@@ -89,7 +111,7 @@ def squash_fixups(repo, base, head, original_shas=None):
             }
         )
 
-    groups = group_fixups(commits)
+    groups = group_autosquash(commits)
     if len(groups) == len(commits):
         return head, {c["sha"]: c["sha"] for c in commits}, len(commits)
 

@@ -29,7 +29,8 @@ pr: the PR
 invalid_modules: comma-separated list of invalid modules"
 runbot_merge.pr.merge_method,"{pr.ping}because this PR has multiple commits, I need to know how to merge it:
 
-{methods}* `rebase-autosquash` to rebase and fast-forward, squashing the fixup! and squash! commits
+{methods}
+With `rebase-ff` and `rebase-merge`, the fixup! and squash! commits are squashed into the commit they fix. `merge` does not squash them and fails.
 ","Comment when a PR is ready but doesn't have a merge method set
 
 pr: the pr we can't stage

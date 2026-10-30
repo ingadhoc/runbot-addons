@@ -3,6 +3,7 @@
 # directory
 ##############################################################################
 
+from . import check_commits
 from . import project
 from . import pull_requests
 from . import stagings
