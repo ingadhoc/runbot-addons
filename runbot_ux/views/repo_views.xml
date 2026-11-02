@@ -5,6 +5,10 @@
         <field name="model">runbot.repo</field>
         <field name="inherit_id" ref="runbot.repo_form"/>
         <field name="arch" type="xml">
+            <field name="mode" position="after">
+                <field name="private"/>
+                <field name="skip_private_dependency_check"/>
+            </field>
             <field name="modules" position="after">
                 <field name="test_modules"/>
             </field>

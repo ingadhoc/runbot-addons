@@ -27,6 +27,15 @@ Características
 - **Triggers nightly y weekly**: un cron diario y uno semanal crean un batch de
   esa categoría en cada bundle base que tenga un trigger de la categoría para
   su versión.
+- **Chequeo de licencias**: desde la versión 20.0, el step ``license-check`` revisa los módulos
+  instalables de los repos del trigger y falla el build cuando:
+
+  - un módulo de un repo público depende, directa o indirectamente, de un
+    módulo ``OEEL-1`` o de un módulo de un repo privado;
+  - un módulo ``AGPL-3`` depende, directa o indirectamente, de un módulo
+    ``OEEL-1``.
+
+  Cada error dice la cadena de dependencias y cómo corregirlo.
 
 Configuración
 =============
@@ -60,6 +69,12 @@ Uso
   ``adhoc.module.module`` (provider); el cron diario trae las listas y cada build
   las aplica automáticamente. Las listas sincronizadas se ven en la lista de
   *Versions* (columnas opcionales).
+- **Chequeo de licencias**: sumar el step ``license-check`` a la config del
+  build, y marcar *Private* en el formulario de cada repo privado. Se marca a
+  mano: si un repo cambia de visibilidad en GitHub, hay que cambiarlo ahí.
+  *Skip Private Dependency Check* apaga la primera regla para un repo público,
+  para las excepciones acordadas o hasta que se corrijan sus módulos. La regla
+  de ``AGPL-3`` sigue valiendo.
 
 Dependencias
 ============
