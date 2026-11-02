@@ -1,14 +1,20 @@
+import ast
 import configparser
 import fnmatch
 import os
+from collections import deque
 
 from odoo import fields, models
 from odoo.addons.runbot.common import local_pg_cursor
 from odoo.tools import config
 
+ENTERPRISE_LICENSE = "OEEL-1"
+
 
 class RunbotBuild(models.Model):
     _inherit = "runbot.build"
+
+    # --- addons path -------------------------------------------------------
 
     def _get_addons_path(self):
         """parche de metodo nativo para que si el path no es valido no lo pase como addons path porque odoo no levanta
@@ -22,6 +28,8 @@ class RunbotBuild(models.Model):
                     commit._source_path(addons_path)
                 ):
                     yield os.path.join(source_path, addons_path).strip(os.sep)
+
+    # --- test modules ------------------------------------------------------
 
     def _get_test_tags_from_modules(self):
         """Return a list of --test-tags values derived from test_modules patterns defined
@@ -75,6 +83,8 @@ class RunbotBuild(models.Model):
             modules_to_test |= repo_modules
 
         return ["/" + module for module in sorted(modules_to_test)]
+
+    # --- parallel post-install tests ---------------------------------------
 
     def _create_post_install_children(self, number_builds):
         """Split the post_install tests of this build into `number_builds` children.
@@ -206,6 +216,8 @@ class RunbotBuild(models.Model):
             parts[-2].extend(parts.pop())
         return parts
 
+    # --- garbage collection ------------------------------------------------
+
     def _cron_gc_unused_builds(self):
         """Free the builds that nobody is going to open again.
 
@@ -253,6 +265,8 @@ class RunbotBuild(models.Model):
         (family - children).write({"gc_delay": -days_main - 1})
         children.write({"gc_delay": -days_child - 1})
 
+    # --- auto-install policy -----------------------------------------------
+
     def _docker_run(self, *args, **kwargs):
         res = super()._docker_run(*args, **kwargs)
         # The base method has just written .odoorc; inject the auto-install
@@ -296,3 +310,103 @@ class RunbotBuild(models.Model):
         parser.set(section, key_disabled, disabled)
         with open(rc_path, "w") as rc_file:
             parser.write(rc_file)
+
+    # --- license check -----------------------------------------------------
+
+    def _get_manifests(self):
+        """Map module name -> (repo, manifest) over the commits of this build.
+
+        The first commit that has a module wins, as in _get_available_modules.
+        """
+        manifests = {}
+        for commit in self.env.context.get("defined_commit_ids") or self.params_id.commit_ids:
+            for addons_path, module, manifest_file_name in commit._get_available_modules():
+                if module in manifests:
+                    continue
+                source = commit._read_source(os.path.join(addons_path, module, manifest_file_name))
+                try:
+                    manifest = ast.literal_eval(source) if source else {}
+                except (ValueError, SyntaxError):
+                    self._log(
+                        "license_check",
+                        "%s: its __manifest__.py can not be read, so its license is not checked." % module,
+                        level="WARNING",
+                    )
+                    manifest = {}
+                manifests[module] = (commit.repo_id, manifest)
+        return manifests
+
+    def _check_licenses(self):
+        """Fail the build when an installable module of the trigger breaks one of these rules.
+
+        - A module of a public repo can not depend, directly or not, on an
+          OEEL-1 module nor on a module of a private repo, unless its repo has
+          skip_private_dependency_check.
+        - A module with license AGPL-3 can not depend, directly or not, on an
+          OEEL-1 module. This one has no exception.
+
+        Modules with installable False are skipped: in a new version they are
+        not migrated yet, and their license is fixed when they are.
+        """
+        self.ensure_one()
+        self._checkout()
+        manifests = self._get_manifests()
+        own_repos = self.params_id.trigger_id.repo_ids
+        checked = offenders = 0
+        for module, (repo, manifest) in sorted(manifests.items()):
+            if repo not in own_repos or manifest.get("installable", True) is False:
+                continue
+            checked += 1
+            parents = self._get_dependencies(module, manifests)
+            enterprise_dep = next((d for d in parents if manifests[d][1].get("license") == ENTERPRISE_LICENSE), None)
+            private_dep = next((d for d in parents if manifests[d][0].private), None)
+            check_repo = not repo.private and not repo.skip_private_dependency_check
+
+            errors = []
+            if check_repo and enterprise_dep:
+                errors.append(
+                    "%s depends on Odoo Enterprise (%s), but its repo %s is public. "
+                    "Fix: remove that dependency, or move the module to a private repo."
+                    % (module, self._get_chain(module, enterprise_dep, parents), repo.name)
+                )
+            if check_repo and private_dep:
+                errors.append(
+                    "%s depends on the private repo %s (%s), but its repo %s is public. "
+                    "Fix: remove that dependency, or move the module to a private repo."
+                    % (module, manifests[private_dep][0].name, self._get_chain(module, private_dep, parents), repo.name)
+                )
+            if enterprise_dep and manifest.get("license") == "AGPL-3":
+                errors.append(
+                    "%s depends on Odoo Enterprise (%s), and AGPL-3 can not be combined with OEEL-1. "
+                    "Fix: set 'license': 'LGPL-3' in its __manifest__.py."
+                    % (module, self._get_chain(module, enterprise_dep, parents))
+                )
+            for error in errors:
+                self._log("license_check", error, level="ERROR")
+            offenders += len(errors)
+        self._log("license_check", "License check: %s installable modules checked, %s errors." % (checked, offenders))
+
+    @staticmethod
+    def _get_dependencies(module, manifests):
+        """Map each module that `module` depends on, directly or not, to the module that depends on it.
+
+        Breadth first, so the first match of a search over the map is the closest one.
+        Modules that are not in `manifests` are left out.
+        """
+        parents = {}
+        queue = deque([module])
+        while queue:
+            current = queue.popleft()
+            for dep in manifests[current][1].get("depends", []):
+                if dep in manifests and dep != module and dep not in parents:
+                    parents[dep] = current
+                    queue.append(dep)
+        return parents
+
+    @staticmethod
+    def _get_chain(module, dep, parents):
+        """The chain of depends from `module` to `dep`, as 'module -> ... -> dep'."""
+        chain = [dep]
+        while chain[-1] != module:
+            chain.append(parents[chain[-1]])
+        return " -> ".join(reversed(chain))

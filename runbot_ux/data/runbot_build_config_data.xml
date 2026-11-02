@@ -59,4 +59,15 @@ build.write({'gc_delay': 1 - days})</field>
         <field name="test_enable" eval="False"/>
         <field name="python_code">build._create_post_install_children(self.number_builds)</field>
     </record>
+
+    <record id="build_config_step_license_check" model="runbot.build.config.step">
+        <field name="name">license-check</field>
+        <field name="job_type">python</field>
+        <!-- Only reads the manifests: no log file to check, as in
+             create-post-install. -->
+        <field name="test_enable" eval="False"/>
+        <!-- runbot.version.number pads each part to two digits; master is "~" and passes too. -->
+        <field name="domain_filter">[('params_id.version_id.number', '>=', '20.00')]</field>
+        <field name="python_code">build._check_licenses()</field>
+    </record>
 </odoo>
