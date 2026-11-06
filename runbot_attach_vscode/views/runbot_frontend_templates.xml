@@ -6,15 +6,24 @@
         <field name="type">qweb</field>
         <field name="inherit_id" ref="runbot.build_menu"/>
         <field name="arch" type="xml">
-            <xpath expr="//a[i[hasclass('fa-refresh')]]" position="after">
-                <a class="dropdown-item"
-                   groups="base.group_user"
-                   t-if="bu.vscode_available"
-                   t-attf-href="/runbot/vscode/{{bu.id}}"
-                   target="_blank">
-                    <i class="fa fa-code"/>
-                    Open VS Code
-                </a>
+            <!-- Client-side template: the data comes from runbot.build_menu_button -->
+            <xpath expr="//li[button[i[hasclass('fa-refresh')]]]" position="after">
+                <li t-attf-t-if="vscode_available">
+                    <a class="dropdown-item" href="/runbot/vscode/{{id}}" target="_blank">
+                        <i class="fa fa-fw fa-code"/> Open VS Code
+                    </a>
+                </li>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="runbot_build_menu_button_vscode" model="ir.ui.view">
+        <field name="name">runbot.build_menu_button.vscode</field>
+        <field name="type">qweb</field>
+        <field name="inherit_id" ref="runbot.build_menu_button"/>
+        <field name="arch" type="xml">
+            <xpath expr="//build-options-dropdown" position="attributes">
+                <attribute name="t-att-data-vscode_available">json.dumps(bool(bu.vscode_available))</attribute>
             </xpath>
         </field>
     </record>

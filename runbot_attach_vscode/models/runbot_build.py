@@ -62,7 +62,7 @@ class RunbotBuild(models.Model):
         session._ensure_container()
         return session
 
-    def _kill(self, result=None):
+    def _kill(self, result="killed"):
         # Stop every user's VS Code container before the build's own container
         # goes away.
         self.vscode_session_ids.filtered(lambda s: s.state != "dead")._stop_container()
