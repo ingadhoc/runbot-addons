@@ -14,14 +14,14 @@ class TestCreatePostInstallChildren(RunbotCase):
             {
                 "name": "aaaa0000ffffffffffffffffffffffffffff0000",
                 "tree_hash": "0aaaa0000ffffffffffffffffffffffffffff000",
-                "repo_id": self.repo_server.id,
+                "repo_id": self.repo_odoo.id,
             }
         )
         self.addons_commit = self.Commit.create(
             {
                 "name": "bbbb0000ffffffffffffffffffffffffffff0000",
                 "tree_hash": "0bbbb0000ffffffffffffffffffffffffffff000",
-                "repo_id": self.repo_addons.id,
+                "repo_id": self.repo_enterprise.id,
             }
         )
         self.params = self.base_params.copy(
@@ -42,8 +42,8 @@ class TestCreatePostInstallChildren(RunbotCase):
         self.install_step.test_tags = "/analytic,/uom,-.test_broken,-post_install"
 
         self._available_modules = {
-            self.repo_server: ["base"],
-            self.repo_addons: ["sale", "account", "stock"],
+            self.repo_odoo: ["base"],
+            self.repo_enterprise: ["sale", "account", "stock"],
         }
         self.start_patcher(
             "build_get_installed_modules",

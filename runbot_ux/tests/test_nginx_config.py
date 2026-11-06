@@ -40,7 +40,7 @@ class TestNginxConfig(RunbotCase):
         geo = self._render(self.Build).split("geo $runbot_trusted {")[1].split("}")[0]
         self.assertEqual(geo.split(), ["default", "0;", "1.2.3.4", "1;", "8.8.8.8", "1;"])
 
-        self.env.ref("runbot_ux.ir_cron_clear_trusted_ips").method_direct_trigger()
+        self.env.ref("runbot_ux.ir_cron_clear_trusted_ips").ir_actions_server_id.run()
         self.assertNotIn("8.8.8.8", self._render(self.Build))
 
     def test_live_build_blocks_code_writes(self):
@@ -56,6 +56,8 @@ class TestNginxConfig(RunbotCase):
         self.assertTrue(returns[0].startswith("return 307 $real_scheme://"), returns)
 
     def test_build_menu_links(self):
+        # The log url is built from the runbot.host record of the build.
+        self.env["runbot.host"].create({"name": "runbot.example.com"})
         build = self.Build.create(
             {
                 "params_id": self.base_params.id,
@@ -65,7 +67,9 @@ class TestNginxConfig(RunbotCase):
             }
         )
         self.stop_patcher("isfile")  # the user avatar is written to the filestore
-        user = new_test_user(self.env, "runbot_viewer", "base.group_user", email="runbot_viewer@example.com")
+        user = new_test_user(
+            self.env, "runbot_viewer", "base.group_user,runbot.group_user", email="runbot_viewer@example.com"
+        )
         View = self.env["ir.ui.view"].with_user(user)
         button = str(View._render_template("runbot.build_menu_button", {"bu": build.with_user(user)}))
         menu = str(View._render_template("runbot.build_menu", {}))

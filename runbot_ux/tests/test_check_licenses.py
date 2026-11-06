@@ -19,12 +19,12 @@ class TestCheckLicenses(RunbotCase):
             return_value={},
         )
         self.repo_private = self.Repo.create({"name": "private", "project_id": self.project.id, "private": True})
-        # repo_server stands for odoo and enterprise, repo_addons for one of ours, public.
+        # repo_odoo stands for odoo and enterprise, repo_enterprise for one of ours, public.
         self.manifests = {
-            "base": (self.repo_server, {"license": "LGPL-3"}),
-            "account_accountant": (self.repo_server, {"license": "OEEL-1", "depends": ["base"]}),
+            "base": (self.repo_odoo, {"license": "LGPL-3"}),
+            "account_accountant": (self.repo_odoo, {"license": "OEEL-1", "depends": ["base"]}),
             "saas_client": (self.repo_private, {"license": "LGPL-3", "depends": ["base"]}),
-            "sale_ux": (self.repo_addons, {"license": "AGPL-3", "depends": ["base"]}),
+            "sale_ux": (self.repo_enterprise, {"license": "AGPL-3", "depends": ["base"]}),
         }
 
     def _check(self):
@@ -40,8 +40,8 @@ class TestCheckLicenses(RunbotCase):
         self.assertEqual(self.build.local_result, "ok")
 
     def test_agpl_in_public_repo_reaches_enterprise(self):
-        self.manifests["account_ux"] = (self.repo_addons, {"license": "LGPL-3", "depends": ["account_accountant"]})
-        self.manifests["account_report_ux"] = (self.repo_addons, {"license": "AGPL-3", "depends": ["account_ux"]})
+        self.manifests["account_ux"] = (self.repo_enterprise, {"license": "LGPL-3", "depends": ["account_accountant"]})
+        self.manifests["account_report_ux"] = (self.repo_enterprise, {"license": "AGPL-3", "depends": ["account_ux"]})
         errors = sorted(self._check())
         self.assertEqual(len(errors), 3)
         # The chain shows how a module reaches Enterprise through one of ours.
@@ -54,31 +54,31 @@ class TestCheckLicenses(RunbotCase):
         self.assertEqual(
             errors[1],
             "account_report_ux depends on Odoo Enterprise (account_report_ux -> account_ux -> account_accountant), "
-            "but its repo addons is public. Fix: remove that dependency, or move the module to a private repo.",
+            "but its repo enterprise is public. Fix: remove that dependency, or move the module to a private repo.",
         )
-        self.assertIn("(account_ux -> account_accountant), but its repo addons is public", errors[2])
+        self.assertIn("(account_ux -> account_accountant), but its repo enterprise is public", errors[2])
         self.assertEqual(self.build.local_result, "ko")
 
     def test_public_repo_depends_on_private_repo(self):
-        self.manifests["sale_saas"] = (self.repo_addons, {"license": "LGPL-3", "depends": ["saas_client"]})
+        self.manifests["sale_saas"] = (self.repo_enterprise, {"license": "LGPL-3", "depends": ["saas_client"]})
         self.assertEqual(
             self._check(),
             [
-                "sale_saas depends on the private repo private (sale_saas -> saas_client), but its repo addons "
+                "sale_saas depends on the private repo private (sale_saas -> saas_client), but its repo enterprise "
                 "is public. Fix: remove that dependency, or move the module to a private repo."
             ],
         )
 
     def test_lgpl_in_private_repo_reaches_enterprise(self):
-        self.manifests["account_ux"] = (self.repo_addons, {"license": "LGPL-3", "depends": ["account_accountant"]})
-        self.repo_addons.private = True
+        self.manifests["account_ux"] = (self.repo_enterprise, {"license": "LGPL-3", "depends": ["account_accountant"]})
+        self.repo_enterprise.private = True
         self.assertEqual(self._check(), [])
         self.assertEqual(self.build.local_result, "ok")
 
     def test_skip_keeps_the_agpl_rule(self):
-        self.manifests["account_ux"] = (self.repo_addons, {"license": "AGPL-3", "depends": ["account_accountant"]})
-        self.manifests["sale_saas"] = (self.repo_addons, {"license": "LGPL-3", "depends": ["saas_client"]})
-        self.repo_addons.skip_private_dependency_check = True
+        self.manifests["account_ux"] = (self.repo_enterprise, {"license": "AGPL-3", "depends": ["account_accountant"]})
+        self.manifests["sale_saas"] = (self.repo_enterprise, {"license": "LGPL-3", "depends": ["saas_client"]})
+        self.repo_enterprise.skip_private_dependency_check = True
         errors = self._check()
         self.assertEqual(len(errors), 1)
         self.assertTrue(
@@ -87,14 +87,14 @@ class TestCheckLicenses(RunbotCase):
 
     def test_not_installable_is_skipped(self):
         self.manifests["account_ux"] = (
-            self.repo_addons,
+            self.repo_enterprise,
             {"license": "AGPL-3", "depends": ["account_accountant"], "installable": False},
         )
         self.assertEqual(self._check(), [])
 
     def test_dependency_repos_are_not_checked(self):
         # Enterprise itself reaches Enterprise, but it is not a repo of the trigger.
-        self.manifests["account_reports"] = (self.repo_server, {"license": "OEEL-1", "depends": ["account_accountant"]})
+        self.manifests["account_reports"] = (self.repo_odoo, {"license": "OEEL-1", "depends": ["account_accountant"]})
         self.assertEqual(self._check(), [])
 
     def test_step_runs_from_version_20(self):
