@@ -169,7 +169,7 @@
                 <filter string="All" name="all" domain="['|', ('active', '=',  True), ('active', '!=',  True)]"/>
 				<separator/>
                 <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
-                <group expand="0" string="Group By">
+                <group>
                     <filter string="Backup Type" name="backup_type" domain="[]" context="{'group_by': 'backup_destination'}"/>
                 </group>
             </search>
