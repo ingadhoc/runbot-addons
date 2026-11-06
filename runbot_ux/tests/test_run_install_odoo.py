@@ -24,14 +24,14 @@ class TestRunInstallOdoo(RunbotCase):
             {
                 "name": "aaaa0000ffffffffffffffffffffffffffff0000",
                 "tree_hash": "0aaaa0000ffffffffffffffffffffffffffff000",
-                "repo_id": self.repo_server.id,
+                "repo_id": self.repo_odoo.id,
             }
         )
         addons_commit = self.Commit.create(
             {
                 "name": "bbbb0000ffffffffffffffffffffffffffff0000",
                 "tree_hash": "0bbbb0000ffffffffffffffffffffffffffff000",
-                "repo_id": self.repo_addons.id,
+                "repo_id": self.repo_enterprise.id,
             }
         )
         params = self.base_params.copy(

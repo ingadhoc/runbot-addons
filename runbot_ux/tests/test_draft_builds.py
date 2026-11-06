@@ -66,7 +66,7 @@ class TestDraftBuilds(RunbotCase):
 
     def test_head_built_before_draft_is_new_again(self):
         """Pushed and built, then draft, then out of draft: the head builds again as new."""
-        commit = self._commit("a", self.repo_server)
+        commit = self._commit("a", self.repo_odoo)
         self.dev_pr.head = commit
         self.dev_bundle.last_batch = self._pushed_batch(commit, build=True)
         self.dev_pr.draft = True
@@ -76,14 +76,14 @@ class TestDraftBuilds(RunbotCase):
 
     def test_every_repo_of_the_bundle_is_new(self):
         """In a bundle with two repos, both heads build again, not only the one of the draft pr."""
-        server_commit = self._commit("a", self.repo_server)
-        addons_commit = self._commit("b", self.repo_addons)
+        server_commit = self._commit("a", self.repo_odoo)
+        addons_commit = self._commit("b", self.repo_enterprise)
         self.Branch.create(
             {
                 "name": self.dev_bundle.name,
                 "bundle_id": self.dev_bundle.id,
                 "is_pr": False,
-                "remote_id": self.remote_addons.id,
+                "remote_id": self.remote_enterprise.id,
                 "head": addons_commit.id,
             }
         )

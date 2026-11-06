@@ -11,19 +11,19 @@ class TestGetTestTagsFromModules(RunbotCase):
     def setUp(self):
         super().setUp()
 
-        # Build params linked to trigger_addons (repo_addons + dependency repo_server)
+        # Build params linked to trigger_addons (repo_enterprise + dependency repo_odoo)
         self.server_commit = self.Commit.create(
             {
                 "name": "aaaa0000ffffffffffffffffffffffffffff0000",
                 "tree_hash": "0aaaa0000ffffffffffffffffffffffffffff000",
-                "repo_id": self.repo_server.id,
+                "repo_id": self.repo_odoo.id,
             }
         )
         self.addons_commit = self.Commit.create(
             {
                 "name": "bbbb0000ffffffffffffffffffffffffffff0000",
                 "tree_hash": "0bbbb0000ffffffffffffffffffffffffffff000",
-                "repo_id": self.repo_addons.id,
+                "repo_id": self.repo_enterprise.id,
             }
         )
         self.params = self.base_params.copy(
@@ -37,10 +37,10 @@ class TestGetTestTagsFromModules(RunbotCase):
         )
         self.build = self.Build.create({"params_id": self.params.id})
 
-        # Simulate available modules: repo_server has 'base','mail'; repo_addons has 'sale','account','stock'
+        # Simulate available modules: repo_odoo has 'base','mail'; repo_enterprise has 'sale','account','stock'
         self._available_modules = {
-            self.repo_server: ["base", "mail"],
-            self.repo_addons: ["sale", "account", "stock"],
+            self.repo_odoo: ["base", "mail"],
+            self.repo_enterprise: ["sale", "account", "stock"],
         }
 
     def _patch_available(self):
@@ -64,7 +64,7 @@ class TestGetTestTagsFromModules(RunbotCase):
     # ------------------------------------------------------------------
     def test_positive_pattern_does_not_filter(self):
         # 'sale' alone does NOT restrict to sale — it adds sale to the already-full set
-        self.repo_addons.test_modules = "sale"
+        self.repo_enterprise.test_modules = "sale"
         with self._patch_available():
             tags = self.build._get_test_tags_from_modules()
         self.assertEqual(sorted(tags), ["/account", "/base", "/mail", "/sale", "/stock"])
@@ -73,7 +73,7 @@ class TestGetTestTagsFromModules(RunbotCase):
     # '-*,module' idiom → select only specific modules
     # ------------------------------------------------------------------
     def test_select_subset_with_exclude_all_then_include(self):
-        self.repo_addons.test_modules = "-*,sale,account"
+        self.repo_enterprise.test_modules = "-*,sale,account"
         with self._patch_available():
             tags = self.build._get_test_tags_from_modules()
         self.assertEqual(sorted(tags), ["/account", "/base", "/mail", "/sale"])
@@ -82,7 +82,7 @@ class TestGetTestTagsFromModules(RunbotCase):
     # Wildcard '*' → same result as empty (adds everything to full set)
     # ------------------------------------------------------------------
     def test_wildcard_star_returns_all_modules(self):
-        self.repo_addons.test_modules = "*"
+        self.repo_enterprise.test_modules = "*"
         with self._patch_available():
             tags = self.build._get_test_tags_from_modules()
         self.assertEqual(sorted(tags), ["/account", "/base", "/mail", "/sale", "/stock"])
@@ -91,7 +91,7 @@ class TestGetTestTagsFromModules(RunbotCase):
     # Exclusion pattern → removes from full set
     # ------------------------------------------------------------------
     def test_exclusion_pattern(self):
-        self.repo_addons.test_modules = "-stock"
+        self.repo_enterprise.test_modules = "-stock"
         with self._patch_available():
             tags = self.build._get_test_tags_from_modules()
         self.assertEqual(sorted(tags), ["/account", "/base", "/mail", "/sale"])
@@ -100,8 +100,8 @@ class TestGetTestTagsFromModules(RunbotCase):
     # Pattern that resolves to nothing → [] (no injection)
     # ------------------------------------------------------------------
     def test_all_excluded_returns_empty(self):
-        self.repo_server.test_modules = "-*"
-        self.repo_addons.test_modules = "-*"
+        self.repo_odoo.test_modules = "-*"
+        self.repo_enterprise.test_modules = "-*"
         with self._patch_available():
             tags = self.build._get_test_tags_from_modules()
         self.assertEqual(tags, [])
@@ -111,8 +111,8 @@ class TestGetTestTagsFromModules(RunbotCase):
     # ------------------------------------------------------------------
     def test_per_repo_results_are_unioned(self):
         # Select only 'base' from server, only 'sale' from addons
-        self.repo_server.test_modules = "-*,base"
-        self.repo_addons.test_modules = "-*,sale"
+        self.repo_odoo.test_modules = "-*,base"
+        self.repo_enterprise.test_modules = "-*,sale"
         with self._patch_available():
             tags = self.build._get_test_tags_from_modules()
         self.assertEqual(sorted(tags), ["/base", "/sale"])
@@ -121,8 +121,8 @@ class TestGetTestTagsFromModules(RunbotCase):
     # Dependency repo patterns are also applied
     # ------------------------------------------------------------------
     def test_dependency_repo_patterns_applied(self):
-        # repo_server is in dependency_ids of trigger_addons
-        self.repo_server.test_modules = "-*,mail"
+        # repo_odoo is in dependency_ids of trigger_addons
+        self.repo_odoo.test_modules = "-*,mail"
         with self._patch_available():
             tags = self.build._get_test_tags_from_modules()
         self.assertEqual(sorted(tags), ["/account", "/mail", "/sale", "/stock"])
@@ -131,7 +131,7 @@ class TestGetTestTagsFromModules(RunbotCase):
     # A build with its own tags gets no injection (fan-out children)
     # ------------------------------------------------------------------
     def test_disable_module_tags_stops_the_injection(self):
-        self.repo_addons.test_modules = "-*,sale"
+        self.repo_enterprise.test_modules = "-*,sale"
         self.params.config_data = {"test_tags": "/account", "disable_module_tags": True}
         with self._patch_available():
             tags = self.build._get_test_tags_from_modules()

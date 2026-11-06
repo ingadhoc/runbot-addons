@@ -21,7 +21,9 @@ class TestGcUnusedBuilds(RunbotCase):
 
     def _build(self, batch, link_type="created", **values):
         params = self.base_params.copy({"create_batch_id": batch.id})
-        build = self.Build.create({"params_id": params.id, "local_state": "done", **values})
+        build = self.Build.create({"params_id": params.id, **values})
+        # create() leaves global_state as pending; write() is what updates it.
+        build.write({"local_state": "done"})
         self.env["runbot.batch.slot"].create(
             {
                 "batch_id": batch.id,
@@ -62,9 +64,11 @@ class TestGcUnusedBuilds(RunbotCase):
             {
                 "params_id": self.base_params.copy({"create_batch_id": parent.create_batch_id.id}).id,
                 "parent_id": parent.id,
-                "local_state": "done",
             }
         )
+        child.write({"local_state": "done"})
+        # The scheduler refreshes the parent on its next turn.
+        parent._update_globals()
         self._batch(self.dev_bundle)
         self.Build._cron_gc_unused_builds()
         self.assertEqual(parent.gc_delay, -8)
