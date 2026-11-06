@@ -49,11 +49,11 @@ class TestRunbotAttachVscode(TransactionCase):
         build = self.env["runbot.build"].new({})
         build.params_id = params if params is not None else self.params
         build.local_state = "running"
+        build.global_state = "running"
         if dest is not None:
             build.dest = dest
         if host is not None:
             build.host = host
-        build._compute_global_state()
         build._compute_vscode_available()
         return build
 

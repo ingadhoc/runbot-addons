@@ -86,13 +86,10 @@ class RunbotBuildVscodeSession(models.Model):
     )
     last_seen = fields.Datetime(default=fields.Datetime.now)
 
-    _sql_constraints = [
-        (
-            "build_user_uniq",
-            "unique(build_id, user_id)",
-            "A user can only have one VS Code session per build.",
-        ),
-    ]
+    _build_user_uniq = models.Constraint(
+        "unique(build_id, user_id)",
+        "A user can only have one VS Code session per build.",
+    )
 
     @api.depends("user_id")
     def _compute_user_key(self):
