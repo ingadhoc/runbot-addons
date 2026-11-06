@@ -4,9 +4,11 @@ from odoo import models
 class RunbotBuildConfigStep(models.Model):
     _inherit = "runbot.build.config.step"
 
-    def _run_install_odoo(self, build):
-        res = super()._run_install_odoo(build)
-        if not res or not res.get("cmd") or not self.test_enable:
+    def _run_install_odoo(self, build, config_data=None):
+        res = super()._run_install_odoo(build, config_data=config_data)
+        # Same merge as the base method: build params win over the caller's data.
+        config_data = {**(config_data or {}), **build.params_id.config_data}
+        if not res or not res.get("cmd") or not config_data.get("test_enable", self.test_enable):
             return res
 
         dynamic_tags = build._get_test_tags_from_modules()

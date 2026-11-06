@@ -2,9 +2,15 @@
 <odoo>
     <template id="build_menu_https" inherit_id="runbot.build_menu">
         <!-- The host nginx and Cloudflare block /web/database -->
-        <xpath expr="//a[contains(@t-attf-href, '/web/database/selector')]" position="replace"/>
-        <xpath expr="//a[contains(@t-attf-href, '/logs/#{log_name}.txt')]" position="attributes">
-            <attribute name="t-attf-href">{{bu.sudo()._http_log_url()}}{{log_name}}.txt</attribute>
+        <xpath expr="//li[a[contains(@href, '/web/database/selector')]]" position="replace"/>
+        <xpath expr="//a[contains(@href, '/logs/{{log_name}}.txt')]" position="attributes">
+            <attribute name="href">{{log_url}}{{log_name}}.txt</attribute>
+        </xpath>
+    </template>
+
+    <template id="build_menu_button_https" inherit_id="runbot.build_menu_button">
+        <xpath expr="//build-options-dropdown" position="attributes">
+            <attribute name="t-att-data-log_url">bu.sudo()._http_log_url() if bu.host else ''</attribute>
         </xpath>
     </template>
 </odoo>

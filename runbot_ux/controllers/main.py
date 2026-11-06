@@ -1,7 +1,6 @@
 import ipaddress
 
-from odoo.addons.runbot.controllers.frontend import route
-from odoo.http import Controller, request
+from odoo.http import Controller, request, route
 
 
 def _is_public_ip(ip):

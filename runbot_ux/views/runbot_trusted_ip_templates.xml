@@ -31,8 +31,8 @@
     </template>
 
     <template id="layout_trusted_ip_menu" inherit_id="runbot.layout">
-        <xpath expr="//div[hasclass('js_usermenu')]/a[@id='o_logout']" position="after">
-            <a t-if="user_id._is_internal()" class="dropdown-item" role="menuitem" href="/runbot/trusted_ip">Test server actions</a>
+        <xpath expr="//ul[hasclass('js_usermenu')]/li[a[@id='o_logout']]" position="after">
+            <li t-if="user_id._is_internal()"><a class="dropdown-item" role="menuitem" href="/runbot/trusted_ip">Test server actions</a></li>
         </xpath>
     </template>
 </odoo>

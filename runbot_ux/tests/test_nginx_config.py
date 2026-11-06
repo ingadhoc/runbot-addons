@@ -66,13 +66,12 @@ class TestNginxConfig(RunbotCase):
         )
         self.stop_patcher("isfile")  # the user avatar is written to the filestore
         user = new_test_user(self.env, "runbot_viewer", "base.group_user", email="runbot_viewer@example.com")
-        menu = str(
-            self.env["ir.ui.view"]
-            .with_user(user)
-            ._render_template("runbot.build_menu", {"bu": build.with_user(user), "fqdn": "frontend.example.com"})
-        )
-        self.assertIn('href="%srun.txt"' % build._http_log_url(), menu)
+        View = self.env["ir.ui.view"].with_user(user)
+        button = str(View._render_template("runbot.build_menu_button", {"bu": build.with_user(user)}))
+        menu = str(View._render_template("runbot.build_menu", {}))
+        self.assertIn('data-log_url="%s"' % build._http_log_url(), button)
         self.assertTrue(build._http_log_url().startswith("https://runbot.example.com/"))
+        self.assertIn('href="{{log_url}}{{log_name}}.txt"', menu)
         self.assertNotIn("/web/database/selector", menu)
 
 
