@@ -4,7 +4,7 @@
     "author": "ADHOC SA",
     "website": "http://runbot.odoo.com",
     "category": "Website",
-    "version": "18.0.1.14.0",
+    "version": "19.0.1.0.0",
     "depends": ["runbot"],
     "data": [
         "data/runbot_ux_data.xml",
