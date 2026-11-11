@@ -77,8 +77,12 @@ commit it fixes.
 
 If one of these commits does not match a previous commit of the PR, conflicts
 when moved next to it, or leaves it empty, the staging fails and the history has
-to be squashed by hand with ``git rebase -i --autosquash``. In a forward-port,
-the commits that do not squash are kept as they are.
+to be squashed by hand with ``git rebase -i --autosquash``.
+
+A forward-port whose ``fixup!`` or ``squash!`` commits do not squash on the new
+branch is created with those commits as they are. It cannot be merged that way:
+the staging tries the same squash and fails. Squash them by hand on the branch
+of the forward-port with ``git rebase -i --autosquash``, push and approve it.
 
 Version Format
 --------------
