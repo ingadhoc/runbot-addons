@@ -95,10 +95,13 @@ _original_stage_merge = stagings_create.stage_merge
 def stage_merge(pr, info, commits, related_prs):
     # merge keeps the commits of the PR as they are, it cannot squash them
     if has_autosquash_commits(commits):
+        # the PR goes to error: setting a merge method alone does not stage it again
+        bot = pr.repository.project_id.github_prefix
         raise exceptions.Unmergeable(
             pr,
-            "has fixup! or squash! commits, which `merge` does not squash. Merge it with `rebase-ff` or"
-            " `rebase-merge`, or squash them with `git rebase -i --autosquash` and push.",
+            "has fixup! or squash! commits, which `merge` does not squash. Merge it with"
+            f" `@{bot} rebase-ff retry` or `@{bot} rebase-merge retry`, or squash them with"
+            " `git rebase -i --autosquash`, push and approve it again.",
         )
     return _original_stage_merge(pr, info, commits, related_prs=related_prs)
 
