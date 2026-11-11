@@ -62,7 +62,10 @@ Fixes asked in a review can be pushed as ``fixup!`` or ``squash!`` commits, so
 the reviewer sees only what changed. The mergebot squashes each of them into the
 commit it fixes when it merges with ``rebase-ff`` or ``rebase-merge``, and in the
 forward-ports. ``merge`` keeps the commits as they are, so a PR with these
-commits fails to merge with it.
+commits fails to merge with it and goes to error. To merge it, change the
+method and retry in the same comment::
+
+    @mergebot rebase-ff retry
 
 A PR of several commits that squash to a single one is merged with ``rebase-ff``,
 without asking for a merge method. If more than one commit is left, the mergebot
