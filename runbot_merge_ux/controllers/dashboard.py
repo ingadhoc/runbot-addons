@@ -112,8 +112,9 @@ def render_full_table_with_bump_policy(pr, branches, repos, batches):
                                 boxes[CheckValue.SUCCESS if pr.squash or pr.merge_method or pr.single_after_autosquash else CheckValue.FAILURE],
                                 Text(
                                     "merge method: {}".format(
-                                        'single' if pr.squash or pr.single_after_autosquash
-                                        else pr.merge_method or 'missing'
+                                        'single' if pr.squash
+                                        else pr.merge_method
+                                        or ('single' if pr.single_after_autosquash else 'missing')
                                     ),
                                     font,
                                     foreground if pr.squash or pr.merge_method or pr.single_after_autosquash else error,
