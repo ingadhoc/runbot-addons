@@ -320,7 +320,7 @@ class RunbotBuild(models.Model):
         """
         manifests = {}
         for commit in self.env.context.get("defined_commit_ids") or self.params_id.commit_ids:
-            for addons_path, module, manifest_file_name in commit._get_available_modules():
+            for addons_path, module, manifest_file_name in commit._list_available_modules():
                 if module in manifests:
                     continue
                 source = commit._read_source(os.path.join(addons_path, module, manifest_file_name))
