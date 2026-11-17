@@ -104,3 +104,15 @@ class TestCheckLicenses(RunbotCase):
             params = self.base_params.copy({"version_id": self.Version._get(version).id})
             build = self.Build.create({"params_id": params.id})
             self.assertEqual(bool(build.filtered_domain(domain)), runs, version)
+
+    def test_manifests_come_from_the_commits(self):
+        # RunbotCase mocks Commit._list_available_modules; only the sources are mocked here.
+        sources = {"odoo/addons/base/__manifest__.py": "{'license': 'LGPL-3'}"}
+        with patch(
+            "odoo.addons.runbot.models.commit.Commit._read_source",
+            autospec=True,
+            side_effect=lambda commit, path, mode="r": sources.get(path, "{}"),
+        ):
+            manifests = self.build.with_context(defined_commit_ids=self.initial_server_commit)._get_manifests()
+        self.assertEqual(manifests["base"], (self.repo_odoo, {"license": "LGPL-3"}))
+        self.assertEqual(manifests["account"], (self.repo_odoo, {}))
