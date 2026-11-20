@@ -1,3 +1,4 @@
+from . import res_users
 from . import runbot_batch
 from . import runbot_branch
 from . import runbot_build
