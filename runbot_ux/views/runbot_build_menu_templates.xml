@@ -5,6 +5,8 @@
         <xpath expr="//li[a[contains(@href, '/web/database/selector')]]" position="replace"/>
         <xpath expr="//a[contains(@href, '/logs/{{log_name}}.txt')]" position="attributes">
             <attribute name="href">{{log_url}}{{log_name}}.txt</attribute>
+            <!-- website would turn the placeholder href into a path relative to the page -->
+            <attribute name="data-no-post-process">1</attribute>
         </xpath>
     </template>
 

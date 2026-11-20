@@ -90,3 +90,14 @@ class TestTrustedIpPage(HttpCase):
             self.env["ir.logging"].search([("message", "like", "trusted IP")]).mapped("message"),
             ["admin trusted IP 8.8.8.8 for today"],
         )
+
+
+@tagged("-at_install", "post_install")
+class TestBuildMenuPage(HttpCase):
+    def test_log_link_keeps_the_placeholder(self):
+        # Every frontend page embeds the build menu; the JS fills {{log_url}} with an absolute url.
+        # Not admin: website does not rewrite urls for site editors.
+        new_test_user(self.env, "runbot_viewer", "base.group_user,runbot.group_user")
+        self.authenticate("runbot_viewer", "runbot_viewer")
+        page = self.url_open("/runbot").text
+        self.assertEqual(re.findall(r'href="([^"]*)\{\{log_name\}\}\.txt"', page), ["{{log_url}}"])
