@@ -24,6 +24,8 @@ Características
   módulos, salvo desde las IPs del parámetro ``runbot_ux.trusted_ips``. Un
   usuario interno suma su IP hasta la medianoche desde *Test server actions*
   (``/runbot/trusted_ip``), en el menú de usuario; un cron las borra cada día.
+- **Sin acción de inicio**: los usuarios nuevos no tienen acción de inicio, así
+  que *Backend* abre el menú de apps y no la lista de *Warnings*.
 - **Triggers nightly y weekly**: un cron diario y uno semanal crean un batch de
   esa categoría en cada bundle base que tenga un trigger de la categoría para
   su versión.
