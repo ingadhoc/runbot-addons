@@ -7,3 +7,4 @@ from . import test_run_install_odoo
 from . import test_start_category
 from . import test_nginx_config
 from . import test_user_home_action
+from . import test_build_api

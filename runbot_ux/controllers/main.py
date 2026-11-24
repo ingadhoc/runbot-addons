@@ -50,3 +50,29 @@ class RunbotTrustedIp(Controller):
                 )
                 values["saved"] = True
         return request.render("runbot_ux.trusted_ip_page", values)
+
+
+class RunbotBuildApi(Controller):
+    @route(["/runbot/api/build/<int:build_id>"], type="http", auth="public", methods=["GET"], sitemap=False)
+    def build_api(self, build_id, **kwargs):
+        """Public build summary: only the fields listed here are exposed."""
+        build = request.env["runbot.build"].sudo().browse(build_id).exists()
+        if not build:
+            return request.not_found()
+        data = self._build_summary(build)
+        data["parent_id"] = build.parent_id.id or None
+        data["children"] = [self._build_summary(child) for child in build.children_ids.sorted("id")]
+        return request.make_json_response(data)
+
+    def _build_summary(self, build):
+        logs = []
+        if build.host_id and build.log_list:
+            base = build._http_log_url()
+            logs = [f"{base}{name}.txt" for name in build.log_list.split(",")]
+        return {
+            "id": build.id,
+            "description": build.description or "",
+            "state": build.global_state,
+            "result": build.global_result,
+            "logs": logs,
+        }
