@@ -40,13 +40,18 @@ def single_after_autosquash(commits):
 
 def _squash_message(target, squashes):
     """Message of ``target`` followed by the body of each ``squash!`` commit,
-    without its subject, as ``git rebase --autosquash`` does.
+    without its subject, as ``git rebase --autosquash`` does, except that a
+    list item right after another one is not separated by a blank line.
     """
     message = Message.from_message(target["commit"]["message"])
     for commit in squashes:
         squash = Message.from_message(commit["commit"]["message"])
         if body := squash.body.partition("\n")[2].strip():
-            message.body = f"{message.body}\n\n{body}"
+            # keep consecutive "- " items as one list, never glued to the subject
+            _head, newline, last = message.body.rpartition("\n")
+            in_list = newline and last.startswith("- ") and body.startswith("- ")
+            separator = "\n" if in_list else "\n\n"
+            message.body = f"{message.body}{separator}{body}"
         # the mergebot adds its own headers to every commit, keep them once
         for key, value in squash.headers.items():
             if key.lower() != "x-original-commit" and value not in message.headers.getlist(key):
